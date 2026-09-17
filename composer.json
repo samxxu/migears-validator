@@ -1,0 +1,25 @@
+{
+    "name": "migears/validator",
+    "description": "Lightweight declarative validation — error codes, i18n-ready",
+    "type": "library",
+    "license": "MIT",
+    "version": "2.0.0",
+    "keywords": ["validation", "validator", "form", "input", "i18n", "migears"],
+    "require": {
+        "php": "^8.1",
+        "ext-mbstring": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10"
+    },
+    "autoload": {
+        "psr-4": {
+            "MiGears\\Validator\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MiGears\\Validator\\Tests\\": "tests/"
+        }
+    }
+}
