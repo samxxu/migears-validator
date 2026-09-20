@@ -4,7 +4,14 @@
     "type": "library",
     "license": "MIT",
     "version": "2.0.0",
-    "keywords": ["validation", "validator", "form", "input", "i18n", "migears"],
+    "keywords": [
+        "validation",
+        "validator",
+        "form",
+        "input",
+        "i18n",
+        "migears"
+    ],
     "require": {
         "php": "^8.1",
         "ext-mbstring": "*"
@@ -21,5 +28,8 @@
         "psr-4": {
             "MiGears\\Validator\\Tests\\": "tests/"
         }
+    },
+    "scripts": {
+        "test": "phpunit"
     }
 }

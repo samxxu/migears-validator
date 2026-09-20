@@ -4,15 +4,7 @@ declare(strict_types=1);
 
 namespace MiGears\Validator;
 
-use MiGears\Validator\Validators\EmailValidator;
-use MiGears\Validator\Validators\IntegerValidator;
-use MiGears\Validator\Validators\MaxLengthValidator;
-use MiGears\Validator\Validators\MaxValidator;
-use MiGears\Validator\Validators\MinLengthValidator;
-use MiGears\Validator\Validators\MinValidator;
-use MiGears\Validator\Validators\PatternValidator;
-use MiGears\Validator\Validators\RequiredValidator;
-use MiGears\Validator\Validators\UrlValidator;
+use MiGears\Validator\ValidatorInterface;
 
 /**
  * Lightweight validator for arrays (form data, API parameters, etc.).
@@ -36,28 +28,85 @@ class Validator
 {
     public const VERSION = '2.0.0';
 
+    private const BUILTIN_NAMESPACE = 'MiGears\Validator\Validators\\';
+
     /** @var array<string, class-string<ValidatorInterface>> */
-    private static array $validatorMap = [
-        'required'  => RequiredValidator::class,
-        'email'     => EmailValidator::class,
-        'minLength' => MinLengthValidator::class,
-        'maxLength' => MaxLengthValidator::class,
-        'pattern'   => PatternValidator::class,
-        'integer'   => IntegerValidator::class,
-        'min'       => MinValidator::class,
-        'max'       => MaxValidator::class,
-        'url'       => UrlValidator::class,
-    ];
+    private array $registry = [];
 
     /**
-     * Register a custom validator with an alias.
+     * Optional pre-registration of custom validators. Each class-string is
+     * registered via {@see register()} (alias derived from class name), so a
+     * ready-to-use instance can be built in one shot:
      *
-     * @param string $alias Short name for the validator
+     *   $validator = new Validator([StrongPasswordValidator::class]);
+     *
+     * @param list<class-string<ValidatorInterface>> $validators
+     */
+    public function __construct(array $validators = [])
+    {
+        foreach ($validators as $class) {
+            $this->register($class);
+        }
+    }
+
+    /**
+     * Register a custom validator for this instance only. The rule alias is
+     * derived from the class short name (e.g. StrongPasswordValidator =>
+     * strongPassword).
+     *
+     * Returns true if the derived alias already resolved to another validator
+     * (i.e. this registration overrode one) — the caller may then log a warning.
+     * Custom rules are scoped to each Validator instance, so they never leak
+     * into other validation contexts.
+     *
      * @param class-string<ValidatorInterface> $class
      */
-    public static function register(string $alias, string $class): void
+    public function register(string $class): bool
     {
-        self::$validatorMap[$alias] = $class;
+        if (!is_subclass_of($class, ValidatorInterface::class)) {
+            throw new \InvalidArgumentException(
+                "Validator {$class} must implement " . ValidatorInterface::class
+            );
+        }
+
+        $alias = self::aliasFromClass((new \ReflectionClass($class))->getShortName());
+        $overwritten = isset($this->registry[$alias])
+            || class_exists(self::BUILTIN_NAMESPACE . ucfirst($alias) . 'Validator');
+
+        $this->registry[$alias] = $class;
+
+        return $overwritten;
+    }
+
+    /**
+     * Derive a rule alias from a validator class short name.
+     */
+    private static function aliasFromClass(string $shortName): string
+    {
+        $suffix = 'Validator';
+        if (str_ends_with($shortName, $suffix)) {
+            $shortName = substr($shortName, 0, -strlen($suffix));
+        }
+        return lcfirst($shortName);
+    }
+
+    /**
+     * Resolve a rule alias to a validator class. Custom registrations take
+     * priority, then built-in validators are derived by name.
+     *
+     * @return class-string<ValidatorInterface>
+     */
+    private function resolve(string $alias): string
+    {
+        if (isset($this->registry[$alias])) {
+            return $this->registry[$alias];
+        }
+
+        $class = self::BUILTIN_NAMESPACE . ucfirst($alias) . 'Validator';
+        if (!class_exists($class)) {
+            throw new \InvalidArgumentException("Unknown validator: {$alias}");
+        }
+        return $class;
     }
 
     /**
@@ -121,18 +170,11 @@ class Validator
         // Numeric key means the value is a validator alias with no config
         if (is_int($key)) {
             $alias = (string) $config;
-            if (!isset(self::$validatorMap[$alias])) {
-                throw new \InvalidArgumentException("Unknown validator: {$alias}");
-            }
-            return new (self::$validatorMap[$alias])();
+            return new (self::resolve($alias))();
         }
 
         // Named rule with configuration
-        if (!isset(self::$validatorMap[$key])) {
-            throw new \InvalidArgumentException("Unknown validator: {$key}");
-        }
-
-        $class = self::$validatorMap[$key];
+        $class = self::resolve($key);
 
         return match (true) {
             $config === true || $config === null => new $class(),
@@ -158,6 +200,55 @@ class Validator
             return new $class();
         }
 
-        return new $class($value);
+        return new $class($this->coerceScalar($class, $value));
+    }
+
+    /**
+     * Coerce a scalar config to the validator's first constructor parameter type,
+     * so numeric/bool params tolerate string config (e.g. 'minLength' => '5').
+     */
+    private function coerceScalar(string $class, mixed $value): mixed
+    {
+        $parameter = (new \ReflectionClass($class))->getConstructor()?->getParameters()[0] ?? null;
+        if ($parameter === null) {
+            return $value;
+        }
+
+        $names = $this->typeNames($parameter->getType());
+        $acceptsInt = in_array('int', $names, true);
+        $acceptsFloat = in_array('float', $names, true);
+        $acceptsBool = in_array('bool', $names, true);
+
+        if (($acceptsInt || $acceptsFloat) && is_numeric($value)) {
+            $intLike = $acceptsInt && !is_float($value) && strpbrk((string) $value, '.eE') === false;
+            return $intLike ? (int) $value : (float) $value;
+        }
+
+        if ($acceptsBool && !is_bool($value)) {
+            if ($value === 1 || $value === '1' || $value === 'true') {
+                return true;
+            }
+            if ($value === 0 || $value === '0' || $value === 'false') {
+                return false;
+            }
+        }
+
+        return $value;
+    }
+
+    /**
+     * Extract the type name(s) of a reflection type (named or union).
+     *
+     * @return string[]
+     */
+    private function typeNames(?\ReflectionType $type): array
+    {
+        if ($type instanceof \ReflectionNamedType) {
+            return [$type->getName()];
+        }
+        if ($type instanceof \ReflectionUnionType) {
+            return array_map(static fn (\ReflectionNamedType $t): string => $t->getName(), $type->getTypes());
+        }
+        return [];
     }
 }
