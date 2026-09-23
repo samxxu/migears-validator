@@ -6,6 +6,10 @@ Lightweight, declarative validation library for PHP. Error-code based, i18n-read
 
 Validator provides a clean API for validating arrays (form data, API parameters, domain objects) with a simple rule syntax. Validation errors are returned as structured error codes + parameters, ready for translation via any i18n library.
 
+> **Background**: miGears is the open-source successor of **TinyGears**, a
+> self-developed PHP framework. It was renamed and open-sourced recently because
+> the name *TinyGears* is already taken in the open-source community.
+
 ## Features
 
 - **Error-code based** — no hardcoded messages, fully i18n-ready
