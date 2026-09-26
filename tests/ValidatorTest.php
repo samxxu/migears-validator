@@ -263,6 +263,129 @@ final class ValidatorTest extends TestCase
         self::assertSame('2.0.0', Validator::VERSION);
     }
 
+    public function testEnumListArrayConfigThroughValidator(): void
+    {
+        $validator = new Validator();
+        // list-array form: ['enum' => ['A','B']] — previously silently dropped
+        self::assertTrue($validator->passes(
+            ['status' => 'A'],
+            ['status' => ['enum' => ['A', 'B']]]
+        ));
+        self::assertFalse($validator->passes(
+            ['status' => 'C'],
+            ['status' => ['enum' => ['A', 'B']]]
+        ));
+    }
+
+    public function testPatternNamedArrayConfigThroughValidator(): void
+    {
+        $validator = new Validator();
+        // named-array form: ['pattern' => ['pattern' => '/.../']]
+        self::assertTrue($validator->passes(
+            ['code' => 'abc123'],
+            ['code' => ['pattern' => ['pattern' => '/^[a-z0-9]+$/']]]
+        ));
+        self::assertFalse($validator->passes(
+            ['code' => 'ABC'],
+            ['code' => ['pattern' => ['pattern' => '/^[a-z0-9]+$/']]]
+        ));
+    }
+
+    public function testPatternListArrayConfigThrowsTypeError(): void
+    {
+        $validator = new Validator();
+        // list-array ['pattern' => ['/.../']] passes the array to the
+        // first parameter, which expects string — TypeError, not silent pass
+        $this->expectException(\TypeError::class);
+        $validator->passes(
+            ['code' => 'abc'],
+            ['code' => ['pattern' => ['/^[a-z]+$/']]]
+        );
+    }
+
+    public function testEqualsTrueFailsForNonEmptyValue(): void
+    {
+        $validator = new Validator();
+        // ['equals' => true] uses default expected=null, so any non-empty value fails
+        self::assertFalse($validator->passes(
+            ['val' => 'hello'],
+            ['val' => ['equals' => true]]
+        ));
+        self::assertTrue($validator->passes(
+            ['val' => ''],
+            ['val' => ['equals' => true]]
+        ));
+    }
+
+    public function testLooseFalsyValuesDoNotDisableRule(): void
+    {
+        $validator = new Validator();
+        // 0 does NOT disable required — empty value still rejected
+        self::assertFalse($validator->passes(
+            ['name' => ''],
+            ['name' => ['required' => 0]]
+        ));
+        // empty string does NOT disable required
+        self::assertFalse($validator->passes(
+            ['name' => ''],
+            ['name' => ['required' => '']]
+        ));
+        // null does NOT disable required (falls into the "use defaults" path)
+        self::assertFalse($validator->passes(
+            ['name' => ''],
+            ['name' => ['required' => null]]
+        ));
+    }
+
+    public function testListFormWithFalseGivesClearException(): void
+    {
+        $validator = new Validator();
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/List-form rule.*must be a string alias/');
+        $validator->validate(
+            ['email' => 'x@y.com'],
+            ['email' => ['email', false]]
+        );
+    }
+
+    public function testConstructorDoesNotCallOverriddenRegister(): void
+    {
+        // Subclass that overrides register() and tracks calls.
+        // The parent constructor must NOT invoke the overridden register().
+        $mock = new class([SecretValidator::class]) extends Validator {
+            public int $registerCalls = 0;
+
+            public function register(string $class): bool
+            {
+                $this->registerCalls++;
+                return parent::register($class);
+            }
+        };
+
+        self::assertSame(0, $mock->registerCalls,
+            'Constructor should not call the overridden register()');
+        // SecretValidator was still registered via the internal path
+        self::assertTrue($mock->passes(['token' => 'secret'], ['token' => ['secret' => true]]));
+
+        // Explicit register() call does invoke the override
+        $mock->register(StatusValidator::class);
+        self::assertSame(1, $mock->registerCalls);
+    }
+
+    public function testEmptyArrayConfigUsesDefaults(): void
+    {
+        $validator = new Validator();
+        // [] means "use default config" — same as true
+        self::assertTrue($validator->passes(
+            ['email' => 'user@example.com'],
+            ['email' => ['email' => []]]
+        ));
+        self::assertFalse($validator->passes(
+            ['name' => ''],
+            ['name' => ['required' => []]]
+        ));
+    }
+
     public function testFalseConfigDisablesRule(): void
     {
         $validator = new Validator();

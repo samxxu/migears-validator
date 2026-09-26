@@ -11,6 +11,9 @@ final class EnumValidator implements ValidatorInterface
     /** @var string[] */
     private array $allowed;
 
+    /**
+     * @param string|list<int|string> $allowed Pipe-separated values or a list of allowed values
+     */
     public function __construct(string|array $allowed = [])
     {
         $this->allowed = array_map('strval', is_array($allowed)

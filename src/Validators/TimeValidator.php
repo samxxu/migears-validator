@@ -22,7 +22,7 @@ final class TimeValidator implements ValidatorInterface
             return false;
         }
 
-        $second = isset($m[3]) && $m[3] !== '' ? (int) $m[3] : null;
+        $second = isset($m[3]) ? (int) $m[3] : null;
 
         return (int) $m[1] <= 23
             && (int) $m[2] <= 59

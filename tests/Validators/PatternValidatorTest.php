@@ -34,4 +34,16 @@ final class PatternValidatorTest extends TestCase
         $validator = new PatternValidator(pattern: '/^[a-z]+$/');
         self::assertSame(['pattern' => '/^[a-z]+$/'], $validator->getErrorParams());
     }
+
+    public function testInvalidPatternThrowsAtConstruction(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new PatternValidator(pattern: '/invalid(/');
+    }
+
+    public function testEmptyPatternIsValid(): void
+    {
+        $validator = new PatternValidator(pattern: '//');
+        self::assertTrue($validator->validate('anything'));
+    }
 }

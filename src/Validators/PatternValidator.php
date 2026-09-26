@@ -11,6 +11,11 @@ final class PatternValidator implements ValidatorInterface
     public function __construct(
         private readonly string $pattern = '//',
     ) {
+        if (@preg_match($this->pattern, '') === false) {
+            throw new \InvalidArgumentException(
+                "Invalid regex pattern: {$this->pattern}"
+            );
+        }
     }
 
     public function validate(mixed $value): bool

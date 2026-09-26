@@ -55,6 +55,8 @@ if ($errors === []) {
 
 Errors are returned as structured data — error code + params, not hardcoded messages. This makes translation and programmatic handling easy.
 
+> 💡 `validate()` returns an **error array**, not a boolean. An empty array means all rules passed. Use `$validator->passes($data, $rules)` when you just need a boolean result — `if ($v->validate(...))` is always truthy when there is at least one error, which is the opposite of what the name suggests.
+
 ```php
 [
     'username' => ['rule' => 'minLength', 'params' => ['min' => 3]],
@@ -155,7 +157,7 @@ if (isset($errors['email'])) {
     };
 }
 
-if (isset($errors['username']['rule']) === 'minLength') {
+if (isset($errors['username']) && $errors['username']['rule'] === 'minLength') {
     $min = $errors['username']['params']['min'];
     $logger->info("Username too short, minimum is {$min}");
 }
@@ -195,9 +197,10 @@ $errors = $user->validate();
 ['required' => true, 'email' => true]
 ```
 
-> ⚠️ `true` always means "enable with default config" — never "set the parameter to `true`". Two consequences:
+> ⚠️ `true` always means "enable with default config" — never "set the parameter to `true`". Three consequences:
 > - To pass `true` to a boolean parameter use the array form: `['containUrl' => ['invert' => true]]`.
-> - Some rules silently pass with their default when keyed `true`. `['pattern' => true]` uses the empty default pattern, and `['equals' => true]` compares against `null` — both will almost always pass. If you intend to enforce a pattern/equality, pass an explicit scalar (`['pattern' => '/.../']`, `['equals' => 'x']`).
+> - Some rules silently pass with their default when keyed `true`. `['pattern' => true]` uses the empty default pattern and matches everything. Others like `['equals' => true]` compare against `null` — which **almost always fails** for any non-empty value. If you intend to enforce a pattern/equality, pass an explicit scalar (`['pattern' => '/.../']`, `['equals' => 'x']`).
+> - Only strict `false` disables a rule: `['required' => false]` skips the rule. Loose falsy values like `0`, `''`, or `null` do **not** disable — they are treated as scalar config and may enable the rule.
 
 ### Scalar — set the main parameter
 ```php
@@ -330,8 +333,8 @@ miGears Validator follows the miGears philosophy: **minimal, readable, and usefu
 - **Error codes, not messages** — i18n is not an afterthought, it's built-in
 - **Simple interface** — one interface with three methods
 - **Short-circuit by default** — one error per field, fail fast
-- **No magic** — no annotations, no reflection for normal usage
-- **Small enough to read** — ~350 lines total
+- **No magic** — no annotations, reflection used internally only for config coercion
+- **Small enough to read** — ~1,200 lines total
 
 ## License
 
@@ -391,6 +394,8 @@ if ($errors === []) {
 ### 错误格式
 
 错误以结构化数据返回 —— 错误码 + 参数，而非硬编码消息。这样翻译和程序化处理都很方便。
+
+> 💡 `validate()` 返回的是**错误数组**，不是布尔值。空数组表示全部通过。只需布尔结果时请用 `$validator->passes($data, $rules)` —— 注意 `if ($v->validate(...))` 在有错误时恒为真，语义与字面直觉相反。
 
 ```php
 [
@@ -532,9 +537,10 @@ $errors = $user->validate();
 ['required' => true, 'email' => true]
 ```
 
-> ⚠️ `true` 始终表示"以默认配置启用"，绝不表示"把参数设为 true"。两个后果：
+> ⚠️ `true` 始终表示"以默认配置启用"，绝不表示"把参数设为 true"。三个后果：
 > - 要传 `true` 给布尔参数请用数组形式：`['containUrl' => ['invert' => true]]`。
-> - 某些规则配 `true` 时用默认值静默通过。`['pattern' => true]` 使用空的默认正则，`['equals' => true]` 会与 `null` 比较——二者几乎必然通过。若要真正校验格式/相等，请传明确的标量（`['pattern' => '/.../']`、`['equals' => 'x']`）。
+> - 某些规则配 `true` 时走默认值：`['pattern' => true]` 使用空正则，什么都匹配；而 `['equals' => true]` 与 `null` 比较——对任意非空值**几乎必然失败**。若要真正校验格式/相等，请传明确的标量（`['pattern' => '/.../']`、`['equals' => 'x']`）。
+> - 只有严格 `false` 才禁用规则：`['required' => false]` 会跳过该规则。`0`、`''`、`null` 等松散假值**不会**禁用——它们被当作标量配置处理，可能反而启用规则。
 
 ### 标量值 — 设置主要参数
 ```php
@@ -666,8 +672,8 @@ miGears Validator 遵循 miGears 设计哲学：**极简、可读、实用**。
 - **错误码，不是消息** — i18n 不是事后考虑，而是内置设计
 - **简单接口** — 一个接口，三个方法
 - **默认短路** — 每个字段一个错误，快速失败
-- **没有魔法** — 没有注解，正常使用不需要反射
-- **小到可以读完** — 总共约 350 行代码
+- **没有魔法** — 没有注解，反射仅内部用于配置适配
+- **小到可以读完** — 总共约 1,200 行代码
 
 ## 许可证
 

@@ -45,7 +45,7 @@ class Validator
     public function __construct(array $validators = [])
     {
         foreach ($validators as $class) {
-            $this->register($class);
+            $this->registerInternal($class);
         }
     }
 
@@ -62,6 +62,18 @@ class Validator
      * @param class-string<ValidatorInterface> $class
      */
     public function register(string $class): bool
+    {
+        return $this->registerInternal($class);
+    }
+
+    /**
+     * Internal registration helper — not overridable, safe to call from
+     * the constructor. Performs the same validation and registry update
+     * as {@see register()}.
+     *
+     * @param class-string<ValidatorInterface> $class
+     */
+    private function registerInternal(string $class): bool
     {
         if (!is_subclass_of($class, ValidatorInterface::class)) {
             throw new \InvalidArgumentException(
@@ -123,7 +135,7 @@ class Validator
      *   'custom' => new CustomValidator()     // validator instance
      *
      * @param array<string, mixed> $data   Input data
-     * @param array<string, array> $rules  Field name => rules array
+     * @param array<string, array<int|string, mixed>> $rules  Field name => rules array
      * @return array<string, array{rule: string, params: array<string, mixed>}>
      */
     public function validate(array $data, array $rules): array
@@ -156,6 +168,9 @@ class Validator
 
     /**
      * Check if data passes validation (convenience method).
+     *
+     * @param array<string, mixed> $data  Input data
+     * @param array<string, array<int|string, mixed>> $rules  Field name => rules array
      */
     public function passes(array $data, array $rules): bool
     {
@@ -174,7 +189,13 @@ class Validator
 
         // Numeric key means the value is a validator alias with no config
         if (is_int($key)) {
-            $alias = (string) $config;
+            if (!is_string($config)) {
+                $type = gettype($config);
+                throw new \InvalidArgumentException(
+                    "List-form rule at index {$key} must be a string alias, got {$type}"
+                );
+            }
+            $alias = $config;
             return new (self::resolve($alias))();
         }
 
@@ -182,8 +203,10 @@ class Validator
         $class = self::resolve($key);
 
         return match (true) {
-            $config === true || $config === null => new $class(),
-            is_array($config) => new $class(...$this->filterConfig($class, $config)),
+            $config === true || $config === null || $config === [] => new $class(),
+            is_array($config) => array_is_list($config)
+                ? new $class($config)
+                : new $class(...$this->filterConfig($class, $config)),
             is_scalar($config) => $this->createFromScalar($class, $config),
             default => throw new \InvalidArgumentException(
                 "Unsupported validator config type: " . gettype($config)
