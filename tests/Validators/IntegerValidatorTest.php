@@ -41,6 +41,13 @@ final class IntegerValidatorTest extends TestCase
         self::assertTrue($validator->validate('-5'));
     }
 
+    public function testTrailingNewlineIsInvalid(): void
+    {
+        $validator = new IntegerValidator();
+        self::assertFalse($validator->validate("123\n"));
+        self::assertFalse($validator->validate("-5\n"));
+    }
+
     public function testErrorCode(): void
     {
         $validator = new IntegerValidator();

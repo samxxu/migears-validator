@@ -18,7 +18,7 @@ final class DateValidator implements ValidatorInterface
             return false;
         }
 
-        if (preg_match('/^(\d{1,4})-(\d{1,2})-(\d{1,2})$/', $value, $m) !== 1) {
+        if (preg_match('/^(\d{1,4})-(\d{1,2})-(\d{1,2})$/D', $value, $m) !== 1) {
             return false;
         }
 

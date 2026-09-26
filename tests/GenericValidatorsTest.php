@@ -32,6 +32,7 @@ final class GenericValidatorsTest extends TestCase
         self::assertFalse($validator->validate('2026-02-30'));
         self::assertFalse($validator->validate('2026/09/19'));
         self::assertFalse($validator->validate('not-a-date'));
+        self::assertFalse($validator->validate("2026-09-19\n"));
         self::assertTrue($validator->validate(''));
         self::assertSame('date', $validator->getErrorCode());
     }
@@ -45,6 +46,7 @@ final class GenericValidatorsTest extends TestCase
         self::assertFalse($validator->validate('10:60'));
         self::assertFalse($validator->validate('10:30:99'));
         self::assertFalse($validator->validate('10-30'));
+        self::assertFalse($validator->validate("10:30\n"));
         self::assertSame('time', $validator->getErrorCode());
     }
 
@@ -69,6 +71,7 @@ final class GenericValidatorsTest extends TestCase
         self::assertTrue($validator->validate('0.5'));
         self::assertFalse($validator->validate('10.555'));
         self::assertFalse($validator->validate('abc'));
+        self::assertFalse($validator->validate("10.50\n"));
         self::assertSame('money', $validator->getErrorCode());
     }
 
@@ -112,6 +115,7 @@ final class GenericValidatorsTest extends TestCase
         self::assertTrue($validator->validate('abcXYZ'));
         self::assertFalse($validator->validate('abc123'));
         self::assertFalse($validator->validate('abc 123'));
+        self::assertFalse($validator->validate("abc\n"));
         self::assertTrue($validator->validate(''));
         self::assertSame('alpha', $validator->getErrorCode());
     }
@@ -121,6 +125,7 @@ final class GenericValidatorsTest extends TestCase
         $validator = new AlphaNumericValidator();
         self::assertTrue($validator->validate('abc123'));
         self::assertFalse($validator->validate('abc 123'));
+        self::assertFalse($validator->validate("abc123\n"));
         self::assertTrue($validator->validate(''));
         self::assertSame('alphaNumeric', $validator->getErrorCode());
     }

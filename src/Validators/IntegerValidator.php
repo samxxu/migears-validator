@@ -19,7 +19,7 @@ final class IntegerValidator implements ValidatorInterface
         }
 
         if (is_string($value)) {
-            return preg_match('/^-?\d+$/', $value) === 1;
+            return preg_match('/^-?\d+$/D', $value) === 1;
         }
 
         return false;

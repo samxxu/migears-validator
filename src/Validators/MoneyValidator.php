@@ -18,7 +18,7 @@ final class MoneyValidator implements ValidatorInterface
             return false;
         }
 
-        return preg_match('/(^[1-9](\d+)?(\.\d{1,2})?$)|(^0$)|(^\d\.\d{1,2}$)/', (string) $value) === 1;
+        return preg_match('/(^[1-9](\d+)?(\.\d{1,2})?$)|(^0$)|(^\d\.\d{1,2}$)/D', (string) $value) === 1;
     }
 
     public function getErrorCode(): string

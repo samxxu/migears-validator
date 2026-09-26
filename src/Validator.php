@@ -134,6 +134,11 @@ class Validator
             $value = $data[$field] ?? null;
 
             foreach ($fieldRules as $key => $config) {
+                // `false` means the rule is disabled — skip it
+                if ($config === false && !is_int($key)) {
+                    continue;
+                }
+
                 $validator = $this->createValidator($key, $config);
 
                 if (!$validator->validate($value)) {
@@ -178,7 +183,7 @@ class Validator
 
         return match (true) {
             $config === true || $config === null => new $class(),
-            is_array($config) => new $class(...$config),
+            is_array($config) => new $class(...$this->filterConfig($class, $config)),
             is_scalar($config) => $this->createFromScalar($class, $config),
             default => throw new \InvalidArgumentException(
                 "Unsupported validator config type: " . gettype($config)
@@ -250,5 +255,29 @@ class Validator
             return array_map(static fn (\ReflectionNamedType $t): string => $t->getName(), $type->getTypes());
         }
         return [];
+    }
+
+    /**
+     * Filter an array config to only keys that match the validator's
+     * constructor parameter names, so unknown keys are silently dropped
+     * instead of causing a named-argument unpacking error.
+     *
+     * @param class-string<ValidatorInterface> $class
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    private function filterConfig(string $class, array $config): array
+    {
+        $constructor = (new \ReflectionClass($class))->getConstructor();
+        if ($constructor === null) {
+            return [];
+        }
+
+        $known = [];
+        foreach ($constructor->getParameters() as $param) {
+            $known[$param->getName()] = true;
+        }
+
+        return array_intersect_key($config, $known);
     }
 }

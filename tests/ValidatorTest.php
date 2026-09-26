@@ -262,4 +262,38 @@ final class ValidatorTest extends TestCase
     {
         self::assertSame('2.0.0', Validator::VERSION);
     }
+
+    public function testFalseConfigDisablesRule(): void
+    {
+        $validator = new Validator();
+        // required=false should skip the rule, so empty value passes
+        self::assertTrue($validator->passes(
+            ['name' => ''],
+            ['name' => ['required' => false]]
+        ));
+        // minLength=false should skip the rule too
+        self::assertTrue($validator->passes(
+            ['name' => 'ab'],
+            ['name' => ['minLength' => false]]
+        ));
+        // mixed: false rule is skipped, but other rules still apply
+        self::assertFalse($validator->passes(
+            ['name' => 'ab'],
+            ['name' => ['required' => false, 'minLength' => 5]]
+        ));
+    }
+
+    public function testArrayConfigIgnoresUnknownKeys(): void
+    {
+        $validator = new Validator();
+        // extra keys in array config should be silently dropped, not throw
+        self::assertTrue($validator->passes(
+            ['name' => 'hello'],
+            ['name' => ['minLength' => ['min' => 3, 'extra' => 'ignored', 'foo' => 42]]]
+        ));
+        self::assertFalse($validator->passes(
+            ['name' => 'ab'],
+            ['name' => ['minLength' => ['min' => 3, 'extra' => 'ignored']]]
+        ));
+    }
 }

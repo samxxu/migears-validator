@@ -18,7 +18,7 @@ final class AlphaValidator implements ValidatorInterface
             return false;
         }
 
-        return preg_match('/^[a-zA-Z]+$/', $value) === 1;
+        return preg_match('/^[a-zA-Z]+$/D', $value) === 1;
     }
 
     public function getErrorCode(): string
