@@ -277,6 +277,21 @@ final class ValidatorTest extends TestCase
         ));
     }
 
+    public function testEnumTrueHasEmptyAllowedSet(): void
+    {
+        $validator = new Validator();
+        // ['enum' => true] enables enum with its default (empty) allowed set,
+        // so every non-empty value is rejected while blank values are skipped.
+        self::assertFalse($validator->passes(
+            ['status' => 'A'],
+            ['status' => ['enum' => true]]
+        ));
+        self::assertTrue($validator->passes(
+            ['status' => ''],
+            ['status' => ['enum' => true]]
+        ));
+    }
+
     public function testPatternNamedArrayConfigThroughValidator(): void
     {
         $validator = new Validator();
@@ -291,15 +306,47 @@ final class ValidatorTest extends TestCase
         ));
     }
 
-    public function testPatternListArrayConfigThrowsTypeError(): void
+    public function testPatternListArrayConfigWorks(): void
     {
         $validator = new Validator();
-        // list-array ['pattern' => ['/.../']] passes the array to the
-        // first parameter, which expects string — TypeError, not silent pass
-        $this->expectException(\TypeError::class);
-        $validator->passes(
+        // list form on a scalar-first-param validator: single element is the
+        // scalar config (previously threw a raw TypeError)
+        self::assertTrue($validator->passes(
             ['code' => 'abc'],
             ['code' => ['pattern' => ['/^[a-z]+$/']]]
+        ));
+        self::assertFalse($validator->passes(
+            ['code' => 'ABC'],
+            ['code' => ['pattern' => ['/^[a-z]+$/']]]
+        ));
+    }
+
+    public function testMinLengthListArrayConfigWorks(): void
+    {
+        $validator = new Validator();
+        self::assertTrue($validator->passes(
+            ['name' => 'abc'],
+            ['name' => ['minLength' => [3]]]
+        ));
+        self::assertFalse($validator->passes(
+            ['name' => 'ab'],
+            ['name' => ['minLength' => [3]]]
+        ));
+        // string numerics are coerced on the list path too
+        self::assertFalse($validator->passes(
+            ['name' => 'ab'],
+            ['name' => ['minLength' => ['3']]]
+        ));
+    }
+
+    public function testMultiElementListConfigForScalarParamThrows(): void
+    {
+        $validator = new Validator();
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/takes a single argument/');
+        $validator->passes(
+            ['name' => 'abc'],
+            ['name' => ['minLength' => [3, 10]]]
         );
     }
 
@@ -406,17 +453,39 @@ final class ValidatorTest extends TestCase
         ));
     }
 
-    public function testArrayConfigIgnoresUnknownKeys(): void
+    public function testArrayConfigRejectsMisspelledKey(): void
     {
         $validator = new Validator();
-        // extra keys in array config should be silently dropped, not throw
+        // a typo must fail loudly instead of silently weakening the rule
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/Unknown config key\(s\) for MinLengthValidator: mn/');
+        $validator->passes(
+            ['name' => 'ab'],
+            ['name' => ['minLength' => ['mn' => 5]]]
+        );
+    }
+
+    public function testArrayConfigRejectsUnknownPatternKey(): void
+    {
+        $validator = new Validator();
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/Unknown config key\(s\) for PatternValidator: patern/');
+        $validator->passes(
+            ['code' => '123'],
+            ['code' => ['pattern' => ['patern' => '/^[a-z]+$/']]]
+        );
+    }
+
+    public function testArrayConfigWithValidKeysStillWorks(): void
+    {
+        $validator = new Validator();
         self::assertTrue($validator->passes(
             ['name' => 'hello'],
-            ['name' => ['minLength' => ['min' => 3, 'extra' => 'ignored', 'foo' => 42]]]
+            ['name' => ['minLength' => ['min' => 3]]]
         ));
         self::assertFalse($validator->passes(
             ['name' => 'ab'],
-            ['name' => ['minLength' => ['min' => 3, 'extra' => 'ignored']]]
+            ['name' => ['minLength' => ['min' => 3]]]
         ));
     }
 }

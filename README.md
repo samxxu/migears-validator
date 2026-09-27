@@ -197,10 +197,10 @@ $errors = $user->validate();
 ['required' => true, 'email' => true]
 ```
 
-> ⚠️ `true` always means "enable with default config" — never "set the parameter to `true`". Three consequences:
+> ⚠️ `true` always means "enable with default config", never "set the parameter to `true`". Three consequences:
 > - To pass `true` to a boolean parameter use the array form: `['containUrl' => ['invert' => true]]`.
-> - Some rules silently pass with their default when keyed `true`. `['pattern' => true]` uses the empty default pattern and matches everything. Others like `['equals' => true]` compare against `null` — which **almost always fails** for any non-empty value. If you intend to enforce a pattern/equality, pass an explicit scalar (`['pattern' => '/.../']`, `['equals' => 'x']`).
-> - Only strict `false` disables a rule: `['required' => false]` skips the rule. Loose falsy values like `0`, `''`, or `null` do **not** disable — they are treated as scalar config and may enable the rule.
+> - Some rules run with a useless default when keyed `true`. `['pattern' => true]` uses the empty pattern and matches everything. `['equals' => true]` compares against `null`, so it **almost always fails** for any non-empty value. `['enum' => true]` enables enum with an empty allowed set, so it **rejects every non-empty value**. To actually enforce a pattern/equality/set, pass an explicit scalar or list.
+> - Only strict `false` disables a rule: `['required' => false]` skips the rule. Loose falsy values like `0`, `''`, or `null` do **not** disable; they are treated as scalar config and may enable the rule.
 
 ### Scalar — set the main parameter
 ```php
@@ -208,10 +208,19 @@ $errors = $user->validate();
 ```
 Scalar values are coerced to the validator's parameter type, so string numerics also work: `['minLength' => '5']`, `['containUrl' => 1]`.
 
-### Array — full configuration
+### Array — named form (constructor parameter names)
 ```php
 ['minLength' => ['min' => 5], 'pattern' => ['pattern' => '/^[a-z]+$/']]
 ```
+Keys are the validator's constructor parameter names. An unknown key raises `InvalidArgumentException` listing the valid keys, so a typo fails loudly instead of silently turning the rule into a no-op.
+
+### Array — list form (positional values)
+```php
+['enum' => ['A', 'B']]          // allowed set, same as ['enum' => 'A|B']
+['pattern' => ['/^[a-z]+$/']]   // same as ['pattern' => '/^[a-z]+$/']
+['minLength' => [5]]            // same as ['minLength' => 5]
+```
+When the validator's first parameter accepts an array (e.g. `enum`), the whole list becomes that argument. Otherwise a one-element list is treated as the scalar config (coercion applies), and a longer list raises `InvalidArgumentException`.
 
 ### Instance — pass a validator directly
 ```php
@@ -539,8 +548,8 @@ $errors = $user->validate();
 
 > ⚠️ `true` 始终表示"以默认配置启用"，绝不表示"把参数设为 true"。三个后果：
 > - 要传 `true` 给布尔参数请用数组形式：`['containUrl' => ['invert' => true]]`。
-> - 某些规则配 `true` 时走默认值：`['pattern' => true]` 使用空正则，什么都匹配；而 `['equals' => true]` 与 `null` 比较——对任意非空值**几乎必然失败**。若要真正校验格式/相等，请传明确的标量（`['pattern' => '/.../']`、`['equals' => 'x']`）。
-> - 只有严格 `false` 才禁用规则：`['required' => false]` 会跳过该规则。`0`、`''`、`null` 等松散假值**不会**禁用——它们被当作标量配置处理，可能反而启用规则。
+> - 某些规则配 `true` 时会使用无意义的默认值：`['pattern' => true]` 使用空正则，什么都匹配；`['equals' => true]` 与 `null` 比较，对任意非空值**几乎必然失败**；`['enum' => true]` 以空允许集启用，**拒绝一切非空值**。要真正校验格式/相等/枚举集合，请传明确的标量或列表。
+> - 只有严格 `false` 才禁用规则：`['required' => false]` 会跳过该规则。`0`、`''`、`null` 等松散假值**不会**禁用，它们被当作标量配置处理，可能反而启用规则。
 
 ### 标量值 — 设置主要参数
 ```php
@@ -548,10 +557,19 @@ $errors = $user->validate();
 ```
 标量值会按验证器参数类型自动适配，因此数字字符串也可用：`['minLength' => '5']`、`['containUrl' => 1]`。
 
-### 数组 — 完整配置
+### 数组 — 命名形态（构造参数名作键）
 ```php
 ['minLength' => ['min' => 5], 'pattern' => ['pattern' => '/^[a-z]+$/']]
 ```
+键为验证器的构造参数名。未知键会抛 `InvalidArgumentException` 并列出合法键，因此拼写错误会立刻报错，而不是把规则静默变成空操作。
+
+### 数组 — 列表形态（位置取值）
+```php
+['enum' => ['A', 'B']]          // 允许集，等价于 ['enum' => 'A|B']
+['pattern' => ['/^[a-z]+$/']]   // 等价于 ['pattern' => '/^[a-z]+$/']
+['minLength' => [5]]            // 等价于 ['minLength' => 5]
+```
+当验证器的首参接受数组（如 `enum`）时，整个列表作为该参数传入；否则单元素列表按标量配置处理（含类型适配），多元素列表则抛 `InvalidArgumentException`。
 
 ### 实例 — 直接传入验证器
 ```php

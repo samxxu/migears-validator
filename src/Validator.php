@@ -204,14 +204,62 @@ class Validator
 
         return match (true) {
             $config === true || $config === null || $config === [] => new $class(),
-            is_array($config) => array_is_list($config)
-                ? new $class($config)
-                : new $class(...$this->filterConfig($class, $config)),
+            is_array($config) => $this->createFromArray($class, $config),
             is_scalar($config) => $this->createFromScalar($class, $config),
             default => throw new \InvalidArgumentException(
                 "Unsupported validator config type: " . gettype($config)
             ),
         };
+    }
+
+    /**
+     * Create a validator from an array config. Two shapes are supported:
+     *
+     *  - map form (string keys): `['minLength' => ['min' => 5]]` — keys are
+     *    constructor parameter names; an unknown key is rejected.
+     *  - list form (0-based keys): `['enum' => ['A', 'B']]` — positional.
+     *    The list is passed as the single argument when the first parameter
+     *    accepts an array (e.g. enum); otherwise a one-element list is
+     *    treated as the scalar config.
+     *
+     * @param class-string<ValidatorInterface> $class
+     * @param array<mixed> $config
+     */
+    private function createFromArray(string $class, array $config): ValidatorInterface
+    {
+        if (!array_is_list($config)) {
+            return new $class(...$this->filterConfig($class, $config));
+        }
+
+        if ($this->acceptsArrayArgument($class)) {
+            return new $class($config);
+        }
+
+        if (count($config) === 1) {
+            return $this->createFromScalar($class, $config[0]);
+        }
+
+        throw new \InvalidArgumentException(sprintf(
+            '%s takes a single argument, but list config has %d; '
+            . 'use the scalar form or the named form instead.',
+            (new \ReflectionClass($class))->getShortName(),
+            count($config)
+        ));
+    }
+
+    /**
+     * Whether the validator's first constructor parameter accepts an array.
+     *
+     * @param class-string<ValidatorInterface> $class
+     */
+    private function acceptsArrayArgument(string $class): bool
+    {
+        $parameter = (new \ReflectionClass($class))->getConstructor()?->getParameters()[0] ?? null;
+        if ($parameter === null) {
+            return false;
+        }
+
+        return in_array('array', $this->typeNames($parameter->getType()), true);
     }
 
     /**
@@ -281,9 +329,9 @@ class Validator
     }
 
     /**
-     * Filter an array config to only keys that match the validator's
-     * constructor parameter names, so unknown keys are silently dropped
-     * instead of causing a named-argument unpacking error.
+     * Validate a map-form config against the validator's constructor
+     * parameter names. An unknown key is rejected rather than dropped, so a
+     * typo fails loudly instead of silently weakening the rule into a no-op.
      *
      * @param class-string<ValidatorInterface> $class
      * @param array<string, mixed> $config
@@ -291,16 +339,20 @@ class Validator
      */
     private function filterConfig(string $class, array $config): array
     {
-        $constructor = (new \ReflectionClass($class))->getConstructor();
-        if ($constructor === null) {
-            return [];
+        $reflection = new \ReflectionClass($class);
+        $parameters = $reflection->getConstructor()?->getParameters() ?? [];
+        $valid = array_map(static fn (\ReflectionParameter $p): string => $p->getName(), $parameters);
+
+        $unknown = array_diff(array_keys($config), $valid);
+        if ($unknown !== []) {
+            throw new \InvalidArgumentException(sprintf(
+                'Unknown config key(s) for %s: %s. Valid key(s): %s.',
+                $reflection->getShortName(),
+                implode(', ', $unknown),
+                $valid === [] ? '(none)' : implode(', ', $valid)
+            ));
         }
 
-        $known = [];
-        foreach ($constructor->getParameters() as $param) {
-            $known[$param->getName()] = true;
-        }
-
-        return array_intersect_key($config, $known);
+        return $config;
     }
 }
