@@ -18,7 +18,7 @@ final class EnumValidator implements ValidatorInterface
     {
         $this->allowed = array_map('strval', is_array($allowed)
             ? $allowed
-            : array_filter(explode('|', $allowed)));
+            : array_filter(explode('|', $allowed), static fn (string $value): bool => $value !== ''));
     }
 
     public function validate(mixed $value): bool

@@ -93,6 +93,23 @@ final class GenericValidatorsTest extends TestCase
         self::assertFalse($intValidator->validate(3));
     }
 
+    public function testEnumPipeStringPreservesZeroValue(): void
+    {
+        // A bare array_filter() drops the falsy string "0", so '0|1' silently
+        // allowed only '1'. The pipe form must agree with the list form.
+        $pipe = new EnumValidator('0|1');
+        $list = new EnumValidator(['0', '1']);
+
+        self::assertSame($list->getErrorParams(), $pipe->getErrorParams());
+        self::assertTrue($pipe->validate('0'));
+        self::assertTrue($pipe->validate('1'));
+        self::assertFalse($pipe->validate('2'));
+
+        // Empty pipe segments are still ignored.
+        $gaps = new EnumValidator('A||B');
+        self::assertSame(['allowed' => 'A|B'], $gaps->getErrorParams());
+    }
+
     public function testEqualsValidator(): void
     {
         $validator = new EqualsValidator('wx-app-id');

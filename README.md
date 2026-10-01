@@ -20,6 +20,22 @@ Validator provides a clean API for validating arrays (form data, API parameters,
 - **Extensible interface** — implement `ValidatorInterface` for custom rules
 - **Zero dependencies** — single package, no runtime dependencies
 
+## Boundaries
+
+**In scope**
+
+- The rule engine: executing declarative rule sets against arrays via `validate()` / `passes()`, returning structured error codes + params (PSR-4 under `MiGears\Validator`).
+- The 23 built-in rule classes and the `ValidatorInterface` (`validate()` / `getErrorCode()` / `getErrorParams()`) for writing custom rules.
+- The five rule-config styles (boolean, scalar, array map/list, validator instance, zero-index alias), including scalar coercion and a loud `InvalidArgumentException` on an unknown config key.
+- Per-instance custom-validator registration, with the alias derived from the class short name and the ability to override a built-in rule.
+
+**Not in scope (by design)**
+
+- Translating error codes into human-readable messages — this module only produces codes + params; message interpolation and localization belong to `migears/i18n`.
+- Declaring and owning the rules themselves — Domain objects declare their rules (e.g. `migears/domain`'s `Validatable` trait with `validationRules()`); the Validator only executes them.
+- Presenting or delivering the result — no HTTP status, no exception, no JSON or view rendering; the caller or framework decides how to surface the errors.
+- Transforming or sanitizing input — `validate()` returns only an error map, never a cleaned, filtered or type-cast value.
+
 ## Installation
 
 ```bash
@@ -222,6 +238,8 @@ Keys are the validator's constructor parameter names. An unknown key raises `Inv
 ```
 When the validator's first parameter accepts an array (e.g. `enum`), the whole list becomes that argument. Otherwise a one-element list is treated as the scalar config (coercion applies), and a longer list raises `InvalidArgumentException`.
 
+A config with nowhere to go is refused rather than dropped: a truthy scalar or one-element list handed to a validator whose constructor takes no argument raises `InvalidArgumentException`, the same loud failure an unknown key gets. Loose falsy values (`0`, `''`) remain the way to write "enabled, no config".
+
 ### Instance — pass a validator directly
 ```php
 ['custom' => new MyCustomValidator()]
@@ -307,7 +325,7 @@ $validator->register(StrongPasswordValidator::class);
 
 // true if it overrode an existing rule (e.g. replacing a built-in) — log a
 // warning in that case if you care
-if ($validator->register(EqualPasswordStrengthValidator::class)) {
+if ($validator->register(\MiGears\Validator\Validators\EmailValidator::class)) {
     // overwritten an existing rule
 }
 
@@ -343,7 +361,7 @@ miGears Validator follows the miGears philosophy: **minimal, readable, and usefu
 - **Simple interface** — one interface with three methods
 - **Short-circuit by default** — one error per field, fail fast
 - **No magic** — no annotations, reflection used internally only for config coercion
-- **Small enough to read** — ~1,200 lines total
+- **Small enough to read** — ~1,300 lines total
 
 ## License
 
@@ -368,6 +386,22 @@ Validator 提供简洁的 API 来验证数组（表单数据、API 参数、领�
 - **短路验证** — 每个字段遇到第一个错误即停止
 - **可扩展接口** — 实现 `ValidatorInterface` 自定义规则
 - **零依赖** — 单个包，无任何运行时依赖
+
+## 边界
+
+**范围内**
+
+- 规则引擎：通过 `validate()` / `passes()` 对数组执行声明式规则集，返回结构化的错误码 + 参数（PSR-4 根为 `MiGears\Validator`）。
+- 23 个内置规则类，以及用于编写自定义规则的 `ValidatorInterface`（`validate()` / `getErrorCode()` / `getErrorParams()`）。
+- 五种规则配置形态（布尔值、标量、数组命名/列表、验证器实例、零索引别名），含标量类型适配，以及未知配置键时抛出的 `InvalidArgumentException`。
+- 基于实例的自定义验证器注册，别名由类短名推导，并可覆盖内置规则。
+
+**范围外（刻意不做）**
+
+- 把错误码翻译成人类可读的消息 —— 本模块只产出错误码 + 参数；消息插值与本地化属于 `migears/i18n`。
+- 声明与持有规则本身 —— 规则由领域对象声明（例如 `migears/domain` 的 `Validatable` trait 配合 `validationRules()`），Validator 只负责执行。
+- 呈现或投递结果 —— 不做 HTTP 状态码、不抛异常、不做 JSON 或视图渲染；如何暴露错误由调用方或框架决定。
+- 转换或清洗输入 —— `validate()` 只返回错误映射，绝不返回被清洗、过滤或类型转换后的值。
 
 ## 安装
 
@@ -571,6 +605,8 @@ $errors = $user->validate();
 ```
 当验证器的首参接受数组（如 `enum`）时，整个列表作为该参数传入；否则单元素列表按标量配置处理（含类型适配），多元素列表则抛 `InvalidArgumentException`。
 
+无处可去的配置会被拒绝，而不是被丢弃：把真值标量或单元素列表交给一个构造器不接受任何参数的验证器，会抛 `InvalidArgumentException`，与未知键得到的是同一种响亮失败。假值（`0`、`''`）仍照旧写作「启用、不带配置」。
+
 ### 实例 — 直接传入验证器
 ```php
 ['custom' => new MyCustomValidator()]
@@ -655,7 +691,7 @@ $validator = new Validator();
 $validator->register(StrongPasswordValidator::class);
 
 // 若返回 true，表示覆盖了已有的规则（例如替换内置规则），此时可酌情记录 warn
-if ($validator->register(EqualPasswordStrengthValidator::class)) {
+if ($validator->register(\MiGears\Validator\Validators\EmailValidator::class)) {
     // 覆盖了已有规则
 }
 
@@ -691,7 +727,7 @@ miGears Validator 遵循 miGears 设计哲学：**极简、可读、实用**。
 - **简单接口** — 一个接口，三个方法
 - **默认短路** — 每个字段一个错误，快速失败
 - **没有魔法** — 没有注解，反射仅内部用于配置适配
-- **小到可以读完** — 总共约 1,200 行代码
+- **小到可以读完** — 总共约 1,300 行代码
 
 ## 许可证
 

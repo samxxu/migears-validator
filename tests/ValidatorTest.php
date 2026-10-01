@@ -214,6 +214,34 @@ final class ValidatorTest extends TestCase
         self::assertTrue($validator->passes(['n' => 15], ['n' => ['min' => '10']]));
     }
 
+    public function testScalarConfigOnAValidatorWithNoConstructorArgumentIsRefused(): void
+    {
+        // The config used to vanish: EmailValidator takes no constructor argument, so the scalar was dropped
+        // and the rule quietly became a bare email check.
+        // 该配置曾会凭空消失：EmailValidator 没有构造参数，于是这个标量被丢弃，规则悄然退化成普通邮箱校验。
+        $validator = new Validator();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('EmailValidator takes no constructor argument');
+
+        $validator->validate(['name' => 'x'], ['name' => ['email' => 'nonsense']]);
+    }
+
+    public function testUncoercibleScalarConfigRaisesTheModulesOwnException(): void
+    {
+        // A raw TypeError used to escape the constructor call, naming a PHP argument rather than the config
+        // value the caller actually wrote.
+        // 此前会从构造器调用处漏出原始的 TypeError，点名的是 PHP 参数，而不是调用方真正写下的配置值。
+        $validator = new Validator();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'MinLengthValidator expects int for its first constructor argument, got string'
+        );
+
+        $validator->validate(['name' => 'x'], ['name' => ['minLength' => 'abc']]);
+    }
+
     public function testScalarBoolConfigForInvertParam(): void
     {
         $validator = new Validator();

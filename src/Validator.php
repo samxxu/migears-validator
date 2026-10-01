@@ -271,12 +271,88 @@ class Validator
     {
         $reflection = new \ReflectionClass($class);
         $constructor = $reflection->getConstructor();
+        $parameters = $constructor?->getParameters() ?? [];
 
-        if ($constructor === null || $constructor->getParameters() === []) {
-            return new $class();
+        if ($parameters === []) {
+            // A falsy scalar is this module's established way of writing "enabled, no config": `['required' => 0]`
+            // and `['required' => '']` both mean the rule is on, and testLooseFalsyValuesDoNotDisableRule pins
+            // that. A truthy one is a different intent — the caller means to configure something, and there is
+            // nowhere for it to go, while the map form throws on the same intent (see filterConfig). Refusing it
+            // is the loud half of the same asymmetry rather than a new rule.
+            // 假值标量是本模块既有的「启用、不带配置」写法：`['required' => 0]` 与 `['required' => '']` 都表示
+            // 规则开着，testLooseFalsyValuesDoNotDisableRule 钉住了这一点。真值则是另一种意图——调用方是要配置
+            // 点什么，而这里没有地方可去，映射形式对同样的意图会抛异常（见 filterConfig）。拒绝它，是把这处
+            // 不对称补成响亮的一半，而不是另立规矩。
+            if (!$value) {
+                return new $class();
+            }
+
+            throw new \InvalidArgumentException(sprintf(
+                '%s takes no constructor argument, so the config %s cannot be applied to it; '
+                . 'drop the config or use a validator that accepts one.',
+                $reflection->getShortName(),
+                is_scalar($value) ? var_export($value, true) : get_debug_type($value)
+            ));
         }
 
-        return new $class($this->coerceScalar($class, $value));
+        $parameter = $parameters[0];
+        $coerced = $this->coerceScalar($class, $value);
+
+        if (!$this->fitsParameter($parameter, $coerced)) {
+            // Letting the constructor raise its own TypeError would leak a raw PHP error out of a public
+            // entry point, which reads as a fault in the caller's PHP rather than a bad config value.
+            // 让构造器自己抛 TypeError，等于从公开入口漏出原始的 PHP 错误，读起来像调用方的 PHP 有问题，
+            // 而不是配置值不对。
+            $names = $this->typeNames($parameter->getType());
+            throw new \InvalidArgumentException(sprintf(
+                '%s expects %s for its first constructor argument, got %s.',
+                $reflection->getShortName(),
+                $names === [] ? '(untyped)' : implode('|', $names),
+                get_debug_type($coerced)
+            ));
+        }
+
+        return new $class($coerced);
+    }
+
+    /**
+     * Whether a coerced value satisfies the parameter's declared type, as far as this factory narrows it.
+     * A type it does not narrow is left to PHP, so the check never refuses a value the constructor accepts.
+     * / 判断强转后的值是否满足参数声明的类型，以本工厂所能收窄的范围为限。它不收窄的类型交给 PHP 判断，
+     * 因此这道检查不会拒绝构造器本来接受的值。
+     *
+     * @param \ReflectionParameter $parameter
+     */
+    private function fitsParameter(\ReflectionParameter $parameter, mixed $value): bool
+    {
+        $names = $this->typeNames($parameter->getType());
+        if ($names === []) {
+            return true;
+        }
+
+        foreach ($names as $name) {
+            $fits = match ($name) {
+                'mixed' => true,
+                'int' => is_int($value),
+                'float' => is_int($value) || is_float($value),
+                'bool' => is_bool($value),
+                'string' => is_string($value),
+                'array' => is_array($value),
+                'iterable' => is_iterable($value),
+                'callable' => is_callable($value),
+                'object' => is_object($value),
+                'null' => $value === null,
+                default => class_exists($name) || interface_exists($name)
+                    ? $value instanceof $name
+                    : true,
+            };
+
+            if ($fits) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
