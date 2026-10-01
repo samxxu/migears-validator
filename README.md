@@ -250,7 +250,7 @@ A config with nowhere to go is refused rather than dropped: a truthy scalar or o
 [0 => 'required', 1 => 'email']
 ```
 
-Rules in this array form take a string alias as the value and apply the rule with its default configuration.
+Rules in this array form take a string alias as the value and apply the rule with its default configuration. A field's rules value must be an array of rules; a non-array value such as `['name' => 'required']` raises `InvalidArgumentException` instead of validating nothing.
 
 ### Empty-value semantics
 
@@ -617,7 +617,7 @@ $errors = $user->validate();
 [0 => 'required', 1 => 'email']
 ```
 
-此形态的值为字符串规则名，使用默认配置启用该规则。
+此形态的值为字符串规则名，使用默认配置启用该规则。字段的规则取值必须是规则数组；像 `['name' => 'required']` 这样的非数组取值会抛 `InvalidArgumentException`，而不是什么都不校验。
 
 ### 空值语义
 

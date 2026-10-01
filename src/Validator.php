@@ -135,7 +135,7 @@ class Validator
      *   'custom' => new CustomValidator()     // validator instance
      *
      * @param array<string, mixed> $data   Input data
-     * @param array<string, array<int|string, mixed>> $rules  Field name => rules array
+     * @param array<string, mixed> $rules  Field name => rules array (the array is enforced at runtime, not by this type)
      * @return array<string, array{rule: string, params: array<string, mixed>}>
      */
     public function validate(array $data, array $rules): array
@@ -143,6 +143,21 @@ class Validator
         $errors = [];
 
         foreach ($rules as $field => $fieldRules) {
+            if (!is_array($fieldRules)) {
+                // A non-array here used to reach the inner foreach as the raw PHP warning
+                // "foreach() argument must be of type array|object" and then leave the field
+                // with no errors at all — validating nothing while reporting success. Refusing
+                // it is the same loud failure an unknown config key already gets.
+                // 非数组此前会被内层 foreach 当成裸 PHP 警告「foreach() argument must be of type
+                // array|object」，随后让该字段不带任何错误——什么都不校验却报告通过。拒绝它，
+                // 与未知配置键得到的响亮失败一致。
+                throw new \InvalidArgumentException(sprintf(
+                    'Rules for field %s must be an array, got %s.',
+                    $field,
+                    get_debug_type($fieldRules)
+                ));
+            }
+
             $value = $data[$field] ?? null;
 
             foreach ($fieldRules as $key => $config) {
@@ -170,7 +185,7 @@ class Validator
      * Check if data passes validation (convenience method).
      *
      * @param array<string, mixed> $data  Input data
-     * @param array<string, array<int|string, mixed>> $rules  Field name => rules array
+     * @param array<string, mixed> $rules  Field name => rules array (the array is enforced at runtime, not by this type)
      */
     public function passes(array $data, array $rules): bool
     {

@@ -516,4 +516,18 @@ final class ValidatorTest extends TestCase
             ['name' => ['minLength' => ['min' => 3]]]
         ));
     }
+
+    public function testNonArrayFieldRulesAreRefused(): void
+    {
+        // A string rules value used to emit the raw PHP warning "foreach() argument must be of type
+        // array|object" and then pass the field silently, validating nothing while reporting success.
+        // 字符串形态的规则值曾抛出裸 PHP 警告「foreach() argument must be of type array|object」，
+        // 随后静默放行该字段——什么都不校验却报告通过。
+        $validator = new Validator();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Rules for field name must be an array, got string');
+
+        $validator->validate(['name' => 'John'], ['name' => 'required']);
+    }
 }
