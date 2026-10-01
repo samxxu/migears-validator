@@ -17,18 +17,24 @@ Legend — **P0** functional or security · **P1** documentation that fails when
 
 | | |
 |---|---|
-| Unsettled | P0 0 · P1 0 · P2 2 · P3 1 · other 0 |
-| Settled | 0 of 3 |
-| Waiting on the owner | `P2-1`, `P2-2`, `P3-1` |
-| Waiting on the reviewer | _nothing_ |
+| Unsettled | P0 0 · P1 0 · P2 2 · P3 3 · other 0 |
+| Settled | 4 of 9 |
+| Waiting on the owner | `P2-3`, `P3-2`, `P3-4` |
 | Waiting on the coordinator | _nothing_ |
+| Waiting on the reviewer | `P2-5`, `P3-3` |
 | Deferred, owing nobody | _nothing_ |
 
 | id | level | status | title |
 |---|---|---|---|
-| [`P2-1`](issues/P2-1.md) | P2 | **open** | The list-shaped config path passes the array straight to the … |
-| [`P2-2`](issues/P2-2.md) | P2 | **open** | Map-form config silently discards unknown keys via … |
-| [`P3-1`](issues/P3-1.md) | P3 | **open** | The module's ISSUES.md asserts that PHP warnings fail the suite here, … |
+| [`P2-1`](issues/P2-1.md) | P2 | **verified** | The list-shaped config path passes the array straight to the … |
+| [`P2-2`](issues/P2-2.md) | P2 | **verified** | Map-form config silently discards unknown keys via … |
+| [`P2-3`](issues/P2-3.md) | P2 | **open** | Validator::createValidator() treats null config the same as true (both … |
+| [`P2-4`](issues/P2-4.md) | P2 | **verified** | The `enum` pipe form silently drops the value `0`: a bare … |
+| [`P2-5`](issues/P2-5.md) | P2 | **fixed** | A scalar config that cannot be coerced leaks a raw `TypeError` out of … |
+| [`P3-1`](issues/P3-1.md) | P3 | **verified** | The module's ISSUES.md asserts that PHP warnings fail the suite here, … |
+| [`P3-2`](issues/P3-2.md) | P3 | **open** | README claims '~1,200 lines total' but src/Validator.php alone is 358 … |
+| [`P3-3`](issues/P3-3.md) | P3 | **fixed** | A scalar or list config on a validator with no constructor parameters … |
+| [`P3-4`](issues/P3-4.md) | P3 | **open** | `README.md` calls `register(EqualPasswordStrengthValidator::class)` in … |
 
 ## Unclosed
 
@@ -37,15 +43,17 @@ highest severity first. `waiting on` is the party who acts next, read from that 
 
 | | |
 |---|---|
-| Unclosed | **3** of 3 |
-| By status | `open` 3 |
-| Waiting on | owner 3 |
+| Unclosed | **5** of 9 |
+| By status | `open` 3 · `fixed` 2 |
+| Waiting on | owner 3 · reviewer 2 |
 
 | level | item | status | waiting on | title |
 |---|---|---|---|---|
-| **P2** | [`P2-1`](issues/P2-1.md) | `open` | owner | The list-shaped config path passes the array straight to the … |
-| **P2** | [`P2-2`](issues/P2-2.md) | `open` | owner | Map-form config silently discards unknown keys via … |
-| **P3** | [`P3-1`](issues/P3-1.md) | `open` | owner | The module's ISSUES.md asserts that PHP warnings fail the suite here, … |
+| **P2** | [`P2-3`](issues/P2-3.md) | `open` | owner | Validator::createValidator() treats null config the same as true (both … |
+| **P2** | [`P2-5`](issues/P2-5.md) | `fixed` | reviewer | A scalar config that cannot be coerced leaks a raw `TypeError` out of … |
+| **P3** | [`P3-2`](issues/P3-2.md) | `open` | owner | README claims '~1,200 lines total' but src/Validator.php alone is 358 … |
+| **P3** | [`P3-3`](issues/P3-3.md) | `fixed` | reviewer | A scalar or list config on a validator with no constructor parameters … |
+| **P3** | [`P3-4`](issues/P3-4.md) | `open` | owner | `README.md` calls `register(EqualPasswordStrengthValidator::class)` in … |
 
 ## Verdict
 
@@ -86,18 +94,24 @@ No test for required validator with empty array value ([]); no test for pattern 
 
 | | |
 |---|---|
-| 未了结 | P0 0 · P1 0 · P2 2 · P3 1 · 其他 0 |
-| 已了结 | 0 / 3 |
-| 等负责人 | `P2-1`, `P2-2`, `P3-1` |
-| 等评审方 | _无_ |
+| 未了结 | P0 0 · P1 0 · P2 2 · P3 3 · 其他 0 |
+| 已了结 | 4 / 9 |
+| 等模块主 | `P2-3`, `P3-2`, `P3-4` |
 | 等协调人 | _无_ |
+| 等评审方 | `P2-5`, `P3-3` |
 | 已暂缓，不欠谁 | _无_ |
 
 | id | 级别 | 状态 | 标题 |
 |---|---|---|---|
-| [`P2-1`](issues/P2-1.md) | P2 | **open** | 列表形态配置会把数组直接传给构造器：["pattern" => ["/^[a-z]+$/"]] 抛 TypeError: … |
-| [`P2-2`](issues/P2-2.md) | P2 | **open** | 映射形态配置用 array_intersect_key 静默丢弃未知键，因此拼错会让规则变弱而不是报错：["minLength" => … |
-| [`P3-1`](issues/P3-1.md) | P3 | **open** | 本模块 ISSUES.md 声称 PHP 警告会导致套件失败，而 phpunit.xml.dist … |
+| [`P2-1`](issues/P2-1.md) | P2 | **verified** | 列表形态配置会把数组直接传给构造器：["pattern" => ["/^[a-z]+$/"]] 抛 TypeError: … |
+| [`P2-2`](issues/P2-2.md) | P2 | **verified** | 映射形态配置用 array_intersect_key 静默丢弃未知键，因此拼错会让规则变弱而不是报错：["minLength" => … |
+| [`P2-3`](issues/P2-3.md) | P2 | **open** | Validator::createValidator() 将 null 配置与 true 同等对待（都调用无参构造器）。README … |
+| [`P2-4`](issues/P2-4.md) | P2 | **verified** | `enum` 的竖线形式会静默丢掉取值 `0`：裸 `array_filter()` 丢弃 `"0"`，因此 `'0|1'` 只允许 … |
+| [`P2-5`](issues/P2-5.md) | P2 | **fixed** | 无法强制转换的标量配置会把原始 `TypeError` … |
+| [`P3-1`](issues/P3-1.md) | P3 | **verified** | 本模块 ISSUES.md 声称 PHP 警告会导致套件失败，而 phpunit.xml.dist … |
+| [`P3-2`](issues/P3-2.md) | P3 | **open** | README 声称「总共约 1,200 行」，但仅 src/Validator.php 就有 358 行，加上 23 个验证器类（平均每个约 … |
+| [`P3-3`](issues/P3-3.md) | P3 | **fixed** | 在没有构造参数的验证器上传入标量或列表配置会被静默丢弃，而映射形式会抛异常。分岔是拒绝它，或把这种不对称写进文档。 |
+| [`P3-4`](issues/P3-4.md) | P3 | **open** | `README.md` 两处调用 … |
 
 ## 未关闭
 
@@ -106,15 +120,17 @@ No test for required validator with empty array value ([]); no test for pattern 
 
 | | |
 |---|---|
-| 未关闭 | **3** / 3 |
-| 按状态 | `open` 3 |
-| 等在谁 | 负责人 3 |
+| 未关闭 | **5** / 9 |
+| 按状态 | `open` 3 · `fixed` 2 |
+| 等在谁 | 模块主 3 · 评审方 2 |
 
 | 级别 | 条目 | 状态 | 等在谁 | 标题 |
 |---|---|---|---|---|
-| **P2** | [`P2-1`](issues/P2-1.md) | `open` | 负责人 | 列表形态配置会把数组直接传给构造器：["pattern" => ["/^[a-z]+$/"]] 抛 TypeError: … |
-| **P2** | [`P2-2`](issues/P2-2.md) | `open` | 负责人 | 映射形态配置用 array_intersect_key 静默丢弃未知键，因此拼错会让规则变弱而不是报错：["minLength" => … |
-| **P3** | [`P3-1`](issues/P3-1.md) | `open` | 负责人 | 本模块 ISSUES.md 声称 PHP 警告会导致套件失败，而 phpunit.xml.dist … |
+| **P2** | [`P2-3`](issues/P2-3.md) | `open` | 模块主 | Validator::createValidator() 将 null 配置与 true 同等对待（都调用无参构造器）。README … |
+| **P2** | [`P2-5`](issues/P2-5.md) | `fixed` | 评审方 | 无法强制转换的标量配置会把原始 `TypeError` … |
+| **P3** | [`P3-2`](issues/P3-2.md) | `open` | 模块主 | README 声称「总共约 1,200 行」，但仅 src/Validator.php 就有 358 行，加上 23 个验证器类（平均每个约 … |
+| **P3** | [`P3-3`](issues/P3-3.md) | `fixed` | 评审方 | 在没有构造参数的验证器上传入标量或列表配置会被静默丢弃，而映射形式会抛异常。分岔是拒绝它，或把这种不对称写进文档。 |
+| **P3** | [`P3-4`](issues/P3-4.md) | `open` | 模块主 | `README.md` 两处调用 … |
 
 ## 结论
 
