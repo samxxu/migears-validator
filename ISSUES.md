@@ -28,7 +28,7 @@ Legend — **P0** functional or security · **P1** documentation that fails when
 |---|---|---|---|
 | [`P2-1`](issues/P2-1.md) | P2 | **verified** | The list-shaped config path passes the array straight to the … |
 | [`P2-2`](issues/P2-2.md) | P2 | **verified** | Map-form config silently discards unknown keys via … |
-| [`P2-3`](issues/P2-3.md) | P2 | **rejected** | Validator::createValidator() treats null config the same as true (both … |
+| [`P2-3`](issues/P2-3.md) | P2 | **rejected** | RuleFactory::createRule() treats null config the same as true (both … |
 | [`P2-4`](issues/P2-4.md) | P2 | **verified** | The `enum` pipe form silently drops the value `0`: a bare … |
 | [`P2-5`](issues/P2-5.md) | P2 | **verified** | A scalar config that cannot be coerced leaks a raw `TypeError` out of … |
 | [`P2-6`](issues/P2-6.md) | P2 | **fixed** | validate() assumes each field’s rules value is an array. Given a string … |
@@ -50,7 +50,7 @@ highest severity first. `waiting on` is the party who acts next, read from that 
 
 | level | item | status | waiting on | title |
 |---|---|---|---|---|
-| **P2** | [`P2-3`](issues/P2-3.md) | `rejected` | reviewer | Validator::createValidator() treats null config the same as true (both … |
+| **P2** | [`P2-3`](issues/P2-3.md) | `rejected` | reviewer | RuleFactory::createRule() treats null config the same as true (both … |
 | **P2** | [`P2-6`](issues/P2-6.md) | `fixed` | reviewer | validate() assumes each field’s rules value is an array. Given a string … |
 
 ## Verdict
@@ -103,7 +103,7 @@ No test passes a non-array rules value to validate(), which is why the finding b
 |---|---|---|---|
 | [`P2-1`](issues/P2-1.md) | P2 | **verified** | 列表形态配置会把数组直接传给构造器：["pattern" => ["/^[a-z]+$/"]] 抛 TypeError: … |
 | [`P2-2`](issues/P2-2.md) | P2 | **verified** | 映射形态配置用 array_intersect_key 静默丢弃未知键，因此拼错会让规则变弱而不是报错：["minLength" => … |
-| [`P2-3`](issues/P2-3.md) | P2 | **rejected** | Validator::createValidator() 将 null 配置与 true 同等对待（都调用无参构造器）。README … |
+| [`P2-3`](issues/P2-3.md) | P2 | **rejected** | RuleFactory::createRule() 将 null 配置与 true 同等对待（都调用无参构造器）。README … |
 | [`P2-4`](issues/P2-4.md) | P2 | **verified** | `enum` 的竖线形式会静默丢掉取值 `0`：裸 `array_filter()` 丢弃 `"0"`，因此 `'0|1'` 只允许 … |
 | [`P2-5`](issues/P2-5.md) | P2 | **verified** | 无法强制转换的标量配置会把原始 `TypeError` … |
 | [`P2-6`](issues/P2-6.md) | P2 | **fixed** | validate() 假定每个字段的规则取值是数组。传入字符串时它抛出裸 PHP 警告（"foreach() argument must be … |
@@ -125,7 +125,7 @@ No test passes a non-array rules value to validate(), which is why the finding b
 
 | 级别 | 条目 | 状态 | 等在谁 | 标题 |
 |---|---|---|---|---|
-| **P2** | [`P2-3`](issues/P2-3.md) | `rejected` | 评审方 | Validator::createValidator() 将 null 配置与 true 同等对待（都调用无参构造器）。README … |
+| **P2** | [`P2-3`](issues/P2-3.md) | `rejected` | 评审方 | RuleFactory::createRule() 将 null 配置与 true 同等对待（都调用无参构造器）。README … |
 | **P2** | [`P2-6`](issues/P2-6.md) | `fixed` | 评审方 | validate() 假定每个字段的规则取值是数组。传入字符串时它抛出裸 PHP 警告（"foreach() argument must be … |
 
 ## 结论

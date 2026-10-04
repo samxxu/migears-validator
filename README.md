@@ -1,6 +1,6 @@
 # migears/validator
 
-![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![Version](https://img.shields.io/badge/version-2.3.0-blue)
 
 Lightweight, declarative validation library for PHP. Error-code based, i18n-ready — no hardcoded messages.
 
@@ -13,11 +13,11 @@ Validator provides a clean API for validating arrays (form data, API parameters,
 ## Features
 
 - **Error-code based** — no hardcoded messages, fully i18n-ready
-- **23 built-in validators** — required, email, integer, number, url, date, time, money, enum, ipAddress, alpha, alphaNumeric, min, max, minLength, maxLength, pattern, equals, greaterThan, greaterOrEqualThan, lessThan, lessOrEqualThan, containUrl
+- **23 built-in rules** — required, email, integer, number, url, date, time, money, enum, ipAddress, alpha, alphaNumeric, min, max, minLength, maxLength, pattern, equals, greaterThan, greaterOrEqualThan, lessThan, lessOrEqualThan, containUrl
 - **Declarative rules** — multiple config styles: boolean, scalar, array, instance, or zero-index alias
-- **Custom validators** — register by class name (alias derived) on each instance, or pass instances directly
+- **Custom rules** — register by class name (alias derived) on each instance, or pass instances directly
 - **Short-circuit validation** — stops at the first error per field
-- **Extensible interface** — implement `ValidatorInterface` for custom rules
+- **Extensible interface** — implement `RuleInterface` for custom rules
 - **Zero dependencies** — single package, no runtime dependencies
 
 ## Boundaries
@@ -25,9 +25,9 @@ Validator provides a clean API for validating arrays (form data, API parameters,
 **In scope**
 
 - The rule engine: executing declarative rule sets against arrays via `validate()` / `passes()`, returning structured error codes + params (PSR-4 under `MiGears\Validator`).
-- The 23 built-in rule classes and the `ValidatorInterface` (`validate()` / `getErrorCode()` / `getErrorParams()`) for writing custom rules.
-- The five rule-config styles (boolean, scalar, array map/list, validator instance, zero-index alias), including scalar coercion and a loud `InvalidArgumentException` on an unknown config key.
-- Per-instance custom-validator registration, with the alias derived from the class short name and the ability to override a built-in rule.
+- The 23 built-in rule classes and the `RuleInterface` (`validate()` / `getErrorCode()` / `getErrorParams()`) for writing custom rules.
+- The five rule-config styles (boolean, scalar, array map/list, rule instance, zero-index alias), including scalar coercion and a loud `InvalidArgumentException` on an unknown config key.
+- Per-instance custom-rule registration — by class-string (alias derived from the class short name) or by a ready-made instance (alias taken from its `getErrorCode()`) — and the ability to override a built-in rule.
 
 **Not in scope (by design)**
 
@@ -222,13 +222,13 @@ $errors = $user->validate();
 ```php
 ['minLength' => 5, 'max' => 100]
 ```
-Scalar values are coerced to the validator's parameter type, so string numerics also work: `['minLength' => '5']`, `['containUrl' => 1]`.
+Scalar values are coerced to the rule's parameter type, so string numerics also work: `['minLength' => '5']`, `['containUrl' => 1]`. Boolean parameters also accept the literals `'1'`/`'true'` and `'0'`/`'false'`.
 
 ### Array — named form (constructor parameter names)
 ```php
 ['minLength' => ['min' => 5], 'pattern' => ['pattern' => '/^[a-z]+$/']]
 ```
-Keys are the validator's constructor parameter names. An unknown key raises `InvalidArgumentException` listing the valid keys, so a typo fails loudly instead of silently turning the rule into a no-op.
+Keys are the rule's constructor parameter names. An unknown key raises `InvalidArgumentException` listing the valid keys, so a typo fails loudly instead of silently turning the rule into a no-op.
 
 ### Array — list form (positional values)
 ```php
@@ -236,13 +236,13 @@ Keys are the validator's constructor parameter names. An unknown key raises `Inv
 ['pattern' => ['/^[a-z]+$/']]   // same as ['pattern' => '/^[a-z]+$/']
 ['minLength' => [5]]            // same as ['minLength' => 5]
 ```
-When the validator's first parameter accepts an array (e.g. `enum`), the whole list becomes that argument. Otherwise a one-element list is treated as the scalar config (coercion applies), and a longer list raises `InvalidArgumentException`.
+When the rule's first parameter accepts an array (e.g. `enum`), the whole list becomes that argument. Otherwise a one-element list is treated as the scalar config (coercion applies), and a longer list raises `InvalidArgumentException`.
 
-A config with nowhere to go is refused rather than dropped: a truthy scalar or one-element list handed to a validator whose constructor takes no argument raises `InvalidArgumentException`, the same loud failure an unknown key gets. Loose falsy values (`0`, `''`) remain the way to write "enabled, no config".
+A config with nowhere to go is refused rather than dropped: a truthy scalar or one-element list handed to a rule whose constructor takes no argument raises `InvalidArgumentException`, the same loud failure an unknown key gets. Loose falsy values (`0`, `''`) remain the way to write "enabled, no config".
 
-### Instance — pass a validator directly
+### Instance — pass a rule directly
 ```php
-['custom' => new MyCustomValidator()]
+['custom' => new MyCustomRule()]
 ```
 
 ### Zero-index alias — enable a rule by name only
@@ -254,9 +254,9 @@ Rules in this array form take a string alias as the value and apply the rule wit
 
 ### Empty-value semantics
 
-Every built-in validator (except `required`) treats a `null` or blank-string value as valid — i.e. it is skipped. Only `required` can force a field to be present. For example `['email' => true]` passes when `email` is absent; add `'required' => true` to make it mandatory.
+Every built-in rule (except `required`) treats a `null` or blank-string value as valid — i.e. it is skipped. Only `required` can force a field to be present. For example `['email' => true]` passes when `email` is absent; add `'required' => true` to make it mandatory. An empty array is only "empty" to `required`; every other rule sees `[]` as an ordinary value and rejects it.
 
-## Built-in Validators
+## Built-in Rules
 
 | Rule | Params | Description |
 |------|--------|-------------|
@@ -285,15 +285,17 @@ Every built-in validator (except `required`) treats a `null` or blank-string val
 | `containUrl` | `{invert}` | Contains a URL (inverted when `invert` is true) |
 
 > The rule name and the error code are the same; the `Params` column shows the entries returned in the error, i.e. the interpolated variables for i18n messages. `alpha` and `alphaNumeric` are ASCII-only — they do not accept accented or CJK (e.g. Chinese) characters.
+>
+> The numeric rules (`number`, `min`, `max`, `greaterThan`, `greaterOrEqualThan`, `lessThan`, `lessOrEqualThan`) rely on PHP's `is_numeric()`, so a numeric string padded with surrounding spaces (`' 123'`, `'123 '`) is accepted. The format rules that use anchored regexes (`integer`, `money`, `alpha`, `alphaNumeric`, `date`, `time`) reject it.
 
-## Custom Validators
+## Custom Rules
 
-Implement `ValidatorInterface`:
+Implement `RuleInterface`:
 
 ```php
-use MiGears\Validator\ValidatorInterface;
+use MiGears\Validator\RuleInterface;
 
-final class StrongPasswordValidator implements ValidatorInterface
+final class StrongPasswordRule implements RuleInterface
 {
     public function validate(mixed $value): bool
     {
@@ -321,11 +323,11 @@ Register and use — custom rules are scoped to each `Validator` instance:
 use MiGears\Validator\Validator;
 
 $validator = new Validator();
-$validator->register(StrongPasswordValidator::class);
+$validator->register(StrongPasswordRule::class);
 
 // true if it overrode an existing rule (e.g. replacing a built-in) — log a
 // warning in that case if you care
-if ($validator->register(\MiGears\Validator\Validators\EmailValidator::class)) {
+if ($validator->register(\MiGears\Validator\Rules\EmailRule::class)) {
     // overwritten an existing rule
 }
 
@@ -334,13 +336,27 @@ $errors = $validator->validate($data, [
 ]);
 ```
 
-The rule alias is derived from the class short name: `StrongPasswordValidator` → `strongPassword`. To replace a built-in rule, name your class to collide with it (e.g. `EmailValidator` in your own namespace overrides `email`). Because registration is per instance, custom rules never leak into other validation contexts.
+The rule alias is derived from the class short name: `StrongPasswordRule` → `strongPassword`. Because this form builds the rule from the config in the rules array, a rule's **parameters live there**, not at the registration:
 
-You can also pre-register validators in the constructor for a ready-to-use instance:
+```php
+$validator->register(StrengthRule::class);
+$validator->validate($data, ['password' => ['strength' => 12]]);   // new StrengthRule(12)
+```
+
+To replace a built-in rule, name your class to collide with it (e.g. `EmailRule` in your own namespace overrides `email`). Because registration is per instance, custom rules never leak into other validation contexts.
+
+A rule may also be registered as an **instance** — the form for one that needs a dependency (a DAO lookup, say). Its alias is its own `getErrorCode()`, so it need not be a named class: anonymous classes and mocks work too. It is already built, so any config given for it in the rules array is **ignored** — do not use this form to pass parameters.
+
+```php
+$validator = new Validator();
+$validator->register(new UniqueEmailRule($dao));   // alias: uniqueEmail (from getErrorCode())
+```
+
+You can also pre-register rules in the constructor for a ready-to-use instance:
 ```php
 $validator = new Validator([
-    StrongPasswordValidator::class,
-    CustomDomainValidators\EmailValidator::class, // override built-in `email`
+    StrongPasswordRule::class,
+    CustomDomainRules\EmailRule::class, // override built-in `email`
 ]);
 ```
 
@@ -348,10 +364,10 @@ $validator = new Validator([
 
 | Method | Description |
 |--------|-------------|
-| `new Validator(array $validators = [])` | Create a validator instance, optionally pre-registering custom validator classes in one shot |
+| `new Validator(array $ruleClasses = [])` | Create a validator instance, optionally pre-registering custom rule classes in one shot |
 | `validate(array $data, array $rules): array` | Validate data, return errors |
 | `passes(array $data, array $rules): bool` | Check if validation passes |
-| `$validator->register(class-string $class): bool` | Register a custom validator on this instance; alias derived from class name, returns `true` if it overrode an existing rule |
+| `$validator->register(class-string\|RuleInterface $rule): bool` | Register a custom rule on this instance — a class-string (alias from the class name) or an instance (alias from its `getErrorCode()`); returns `true` if it overrode an existing rule |
 
 ## Design Philosophy
 
@@ -361,7 +377,7 @@ miGears Validator follows the miGears philosophy: **minimal, readable, and usefu
 - **Simple interface** — one interface with three methods
 - **Short-circuit by default** — one error per field, fail fast
 - **No magic** — no annotations, reflection used internally only for config coercion
-- **Small enough to read** — ~1,300 lines total
+- **Small enough to read** — ~1,400 lines total
 
 ## License
 
@@ -371,7 +387,7 @@ MIT
 
 # migears/validator
 
-![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![Version](https://img.shields.io/badge/version-2.3.0-blue)
 
 轻量级声明式 PHP 验证库。基于错误码，i18n 友好 —— 没有硬编码的消息。
 
@@ -380,11 +396,11 @@ Validator 提供简洁的 API 来验证数组（表单数据、API 参数、领�
 ## 特性
 
 - **基于错误码** — 没有硬编码消息，完全 i18n 就绪
-- **23 个内置验证器** — required、email、integer、number、url、date、time、money、enum、ipAddress、alpha、alphaNumeric、min、max、minLength、maxLength、pattern、equals、greaterThan、greaterOrEqualThan、lessThan、lessOrEqualThan、containUrl
+- **23 个内置规则** — required、email、integer、number、url、date、time、money、enum、ipAddress、alpha、alphaNumeric、min、max、minLength、maxLength、pattern、equals、greaterThan、greaterOrEqualThan、lessThan、lessOrEqualThan、containUrl
 - **声明式规则** — 多种配置方式：布尔值、标量、数组、实例、零索引别名
-- **自定义验证器** — 在每个实例上按类名注册（别名自动推导）或直接传入实例
+- **自定义规则** — 在每个实例上按类名注册（别名自动推导）或直接传入实例
 - **短路验证** — 每个字段遇到第一个错误即停止
-- **可扩展接口** — 实现 `ValidatorInterface` 自定义规则
+- **可扩展接口** — 实现 `RuleInterface` 自定义规则
 - **零依赖** — 单个包，无任何运行时依赖
 
 ## 边界
@@ -392,9 +408,9 @@ Validator 提供简洁的 API 来验证数组（表单数据、API 参数、领�
 **范围内**
 
 - 规则引擎：通过 `validate()` / `passes()` 对数组执行声明式规则集，返回结构化的错误码 + 参数（PSR-4 根为 `MiGears\Validator`）。
-- 23 个内置规则类，以及用于编写自定义规则的 `ValidatorInterface`（`validate()` / `getErrorCode()` / `getErrorParams()`）。
-- 五种规则配置形态（布尔值、标量、数组命名/列表、验证器实例、零索引别名），含标量类型适配，以及未知配置键时抛出的 `InvalidArgumentException`。
-- 基于实例的自定义验证器注册，别名由类短名推导，并可覆盖内置规则。
+- 23 个内置规则类，以及用于编写自定义规则的 `RuleInterface`（`validate()` / `getErrorCode()` / `getErrorParams()`）。
+- 五种规则配置形态（布尔值、标量、数组命名/列表、规则实例、零索引别名），含标量类型适配，以及未知配置键时抛出的 `InvalidArgumentException`。
+- 基于实例的自定义规则注册 —— 可传类名（别名由类短名推导）或传已构造的实例（别名取自其 `getErrorCode()`）—— 并可覆盖内置规则。
 
 **范围外（刻意不做）**
 
@@ -589,13 +605,13 @@ $errors = $user->validate();
 ```php
 ['minLength' => 5, 'max' => 100]
 ```
-标量值会按验证器参数类型自动适配，因此数字字符串也可用：`['minLength' => '5']`、`['containUrl' => 1]`。
+标量值会按规则参数类型自动适配，因此数字字符串也可用：`['minLength' => '5']`、`['containUrl' => 1]`。布尔参数还接受字面量 `'1'`/`'true'` 与 `'0'`/`'false'`。
 
 ### 数组 — 命名形态（构造参数名作键）
 ```php
 ['minLength' => ['min' => 5], 'pattern' => ['pattern' => '/^[a-z]+$/']]
 ```
-键为验证器的构造参数名。未知键会抛 `InvalidArgumentException` 并列出合法键，因此拼写错误会立刻报错，而不是把规则静默变成空操作。
+键为规则的构造参数名。未知键会抛 `InvalidArgumentException` 并列出合法键，因此拼写错误会立刻报错，而不是把规则静默变成空操作。
 
 ### 数组 — 列表形态（位置取值）
 ```php
@@ -603,13 +619,13 @@ $errors = $user->validate();
 ['pattern' => ['/^[a-z]+$/']]   // 等价于 ['pattern' => '/^[a-z]+$/']
 ['minLength' => [5]]            // 等价于 ['minLength' => 5]
 ```
-当验证器的首参接受数组（如 `enum`）时，整个列表作为该参数传入；否则单元素列表按标量配置处理（含类型适配），多元素列表则抛 `InvalidArgumentException`。
+当规则的首参接受数组（如 `enum`）时，整个列表作为该参数传入；否则单元素列表按标量配置处理（含类型适配），多元素列表则抛 `InvalidArgumentException`。
 
-无处可去的配置会被拒绝，而不是被丢弃：把真值标量或单元素列表交给一个构造器不接受任何参数的验证器，会抛 `InvalidArgumentException`，与未知键得到的是同一种响亮失败。假值（`0`、`''`）仍照旧写作「启用、不带配置」。
+无处可去的配置会被拒绝，而不是被丢弃：把真值标量或单元素列表交给一个构造器不接受任何参数的规则，会抛 `InvalidArgumentException`，与未知键得到的是同一种响亮失败。假值（`0`、`''`）仍照旧写作「启用、不带配置」。
 
-### 实例 — 直接传入验证器
+### 实例 — 直接传入规则
 ```php
-['custom' => new MyCustomValidator()]
+['custom' => new MyCustomRule()]
 ```
 
 ### 零索引别名 — 仅按名称启用规则
@@ -621,9 +637,9 @@ $errors = $user->validate();
 
 ### 空值语义
 
-内置所有验证器（`required` 除外）都把 `null` 或空白字符串视为合法——即自动跳过。只有 `required` 能强制字段必填。例如 `['email' => true]` 在缺少 `email` 时通过；要强制必填需加上 `'required' => true`。
+内置所有规则（`required` 除外）都把 `null` 或空白字符串视为合法——即自动跳过。只有 `required` 能强制字段必填。例如 `['email' => true]` 在缺少 `email` 时通过；要强制必填需加上 `'required' => true`。空数组只对 `required` 算「空」；其它规则会把 `[]` 当作普通取值并判为失败。
 
-## 内置验证器
+## 内置规则
 
 | 规则 | 参数 | 说明 |
 |------|------|------|
@@ -652,15 +668,17 @@ $errors = $user->validate();
 | `containUrl` | `{invert}` | 包含 URL（`invert` 为 true 时取反） |
 
 > 规则名即错误码；「参数」列是出错时返回的字段，即 i18n 消息用于插值的变量。`alpha` 与 `alphaNumeric` 仅支持 ASCII，不接受带重音或 CJK（如中文）字符。
+>
+> 数值类规则（`number`、`min`、`max`、`greaterThan`、`greaterOrEqualThan`、`lessThan`、`lessOrEqualThan`）基于 PHP 的 `is_numeric()`，因此前后带空格的数字串（`' 123'`、`'123 '`）会被接受；而使用锚定正则的格式类规则（`integer`、`money`、`alpha`、`alphaNumeric`、`date`、`time`）会拒绝。
 
-## 自定义验证器
+## 自定义规则
 
-实现 `ValidatorInterface`：
+实现 `RuleInterface`：
 
 ```php
-use MiGears\Validator\ValidatorInterface;
+use MiGears\Validator\RuleInterface;
 
-final class StrongPasswordValidator implements ValidatorInterface
+final class StrongPasswordRule implements RuleInterface
 {
     public function validate(mixed $value): bool
     {
@@ -688,10 +706,10 @@ final class StrongPasswordValidator implements ValidatorInterface
 use MiGears\Validator\Validator;
 
 $validator = new Validator();
-$validator->register(StrongPasswordValidator::class);
+$validator->register(StrongPasswordRule::class);
 
 // 若返回 true，表示覆盖了已有的规则（例如替换内置规则），此时可酌情记录 warn
-if ($validator->register(\MiGears\Validator\Validators\EmailValidator::class)) {
+if ($validator->register(\MiGears\Validator\Rules\EmailRule::class)) {
     // 覆盖了已有规则
 }
 
@@ -700,13 +718,27 @@ $errors = $validator->validate($data, [
 ]);
 ```
 
-规则别名由类短名推导：`StrongPasswordValidator` → `strongPassword`。若要覆盖内置规则，把外部类命名成与之重名即可（例如自己命名一个 `EmailValidator` 就能覆盖内置的 `email`）。因为注册是基于实例的，自定义规则不会泄漏到其它验证场景。
+规则别名由类短名推导：`StrongPasswordRule` → `strongPassword`。这种形态会依据规则数组里的配置来构造规则，因此规则的**参数写在规则数组里**，而不是写在注册处：
+
+```php
+$validator->register(StrengthRule::class);
+$validator->validate($data, ['password' => ['strength' => 12]]);   // new StrengthRule(12)
+```
+
+若要覆盖内置规则，把外部类命名成与之重名即可（例如自己命名一个 `EmailRule` 就能覆盖内置的 `email`）。因为注册是基于实例的，自定义规则不会泄漏到其它验证场景。
+
+规则也可以按**实例**注册 —— 适用于需要依赖（比如查库）的规则。它的别名取自自身的 `getErrorCode()`，因此不必是具名类：匿名类与 mock 同样可用。它已经构造完成，所以规则数组里为它写的配置会被**忽略** —— 不要用这种形态传参。
+
+```php
+$validator = new Validator();
+$validator->register(new UniqueEmailRule($dao));   // 别名：uniqueEmail（取自 getErrorCode()）
+```
 
 也可以在构造器里一次性预注册，得到一个开箱即用的实例：
 ```php
 $validator = new Validator([
-    StrongPasswordValidator::class,
-    CustomDomainValidators\EmailValidator::class, // 覆盖内置 `email`
+    StrongPasswordRule::class,
+    CustomDomainRules\EmailRule::class, // 覆盖内置 `email`
 ]);
 ```
 
@@ -714,10 +746,10 @@ $validator = new Validator([
 
 | 方法 | 说明 |
 |------|------|
-| `new Validator(array $validators = [])` | 创建验证器实例，可选地在构造时一次性预注册自定义验证器类 |
+| `new Validator(array $ruleClasses = [])` | 创建验证器实例，可选地在构造时一次性预注册自定义规则类 |
 | `validate(array $data, array $rules): array` | 验证数据，返回错误 |
 | `passes(array $data, array $rules): bool` | 检查验证是否通过 |
-| `$validator->register(class-string $class): bool` | 在当前实例注册自定义验证器；别名由类名推导，返回 `true` 表示覆盖了已有规则 |
+| `$validator->register(class-string\|RuleInterface $rule): bool` | 在当前实例注册自定义规则 —— 传类名（别名由类名推导）或传实例（别名取自其 `getErrorCode()`）；返回 `true` 表示覆盖了已有规则 |
 
 ## 设计哲学
 
@@ -727,7 +759,7 @@ miGears Validator 遵循 miGears 设计哲学：**极简、可读、实用**。
 - **简单接口** — 一个接口，三个方法
 - **默认短路** — 每个字段一个错误，快速失败
 - **没有魔法** — 没有注解，反射仅内部用于配置适配
-- **小到可以读完** — 总共约 1,300 行代码
+- **小到可以读完** — 总共约 1,400 行代码
 
 ## 许可证
 

@@ -7,7 +7,8 @@ namespace MiGears\Validator\Tests;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use MiGears\Validator\Validator;
-use MiGears\Validator\Validators\RequiredValidator;
+use MiGears\Validator\RuleInterface;
+use MiGears\Validator\Rules\RequiredRule;
 
 #[CoversClass(Validator::class)]
 final class ValidatorTest extends TestCase
@@ -58,7 +59,7 @@ final class ValidatorTest extends TestCase
         ));
     }
 
-    public function testRequiredValidator(): void
+    public function testRequiredRule(): void
     {
         $validator = new Validator();
         $errors = $validator->validate(
@@ -68,7 +69,7 @@ final class ValidatorTest extends TestCase
         self::assertSame('required', $errors['field']['rule']);
     }
 
-    public function testMinLengthValidator(): void
+    public function testMinLengthRule(): void
     {
         $validator = new Validator();
         $errors = $validator->validate(
@@ -96,7 +97,7 @@ final class ValidatorTest extends TestCase
         self::assertSame('required', $errors['email']['rule']);
     }
 
-    public function testUnknownValidatorThrows(): void
+    public function testUnknownRuleThrows(): void
     {
         $validator = new Validator();
         $this->expectException(\InvalidArgumentException::class);
@@ -106,10 +107,10 @@ final class ValidatorTest extends TestCase
         );
     }
 
-    public function testRegisterCustomValidator(): void
+    public function testRegisterCustomRule(): void
     {
         $validator = new Validator();
-        $validator->register(SecretValidator::class);
+        $validator->register(SecretRule::class);
 
         $errors = $validator->validate(
             ['code' => 'wrong'],
@@ -124,15 +125,15 @@ final class ValidatorTest extends TestCase
         self::assertSame([], $errors);
     }
 
-    public function testRegisterNewValidatorReturnsFalse(): void
+    public function testRegisterNewRuleReturnsFalse(): void
     {
-        self::assertFalse((new Validator())->register(StatusValidator::class));
+        self::assertFalse((new Validator())->register(StatusRule::class));
     }
 
     public function testRegisterOverridingBuiltinReturnsTrue(): void
     {
         $validator = new Validator();
-        self::assertTrue($validator->register(EmailValidator::class));
+        self::assertTrue($validator->register(EmailRule::class));
 
         self::assertTrue($validator->passes(
             ['email' => 'user@example.com'],
@@ -144,7 +145,7 @@ final class ValidatorTest extends TestCase
         ));
     }
 
-    public function testRegisterNonValidatorThrows(): void
+    public function testRegisterNonRuleThrows(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         (new Validator())->register(self::class);
@@ -153,7 +154,7 @@ final class ValidatorTest extends TestCase
     public function testCustomRuleDoesNotLeakToOtherInstances(): void
     {
         $a = new Validator();
-        $a->register(SecretValidator::class);
+        $a->register(SecretRule::class);
 
         $this->expectException(\InvalidArgumentException::class);
         (new Validator())->validate(
@@ -162,16 +163,133 @@ final class ValidatorTest extends TestCase
         );
     }
 
-    public function testValidatorInstanceInRules(): void
+    public function testRuleInstanceInRules(): void
     {
-        $customValidator = new RequiredValidator();
+        $customRule = new RequiredRule();
 
         $validator = new Validator();
         $errors = $validator->validate(
             ['field' => ''],
-            ['field' => ['custom' => $customValidator]]
+            ['field' => ['custom' => $customRule]]
         );
         self::assertSame('required', $errors['field']['rule']);
+    }
+
+    public function testRegisterInstanceUsesErrorCodeAsAlias(): void
+    {
+        $validator = new Validator();
+        $validator->register(new SecretRule());
+
+        self::assertTrue($validator->passes(['code' => 'secret'], ['code' => ['secret' => true]]));
+        self::assertFalse($validator->passes(['code' => 'wrong'], ['code' => ['secret' => true]]));
+    }
+
+    public function testRegisterInstanceAcceptsAnAnonymousClass(): void
+    {
+        // The alias comes from getErrorCode(), not the class name, so a rule
+        // need not be a named class.
+        $rule = new class implements RuleInterface {
+            public function validate(mixed $value): bool
+            {
+                return $value === 'ok';
+            }
+
+            public function getErrorCode(): string
+            {
+                return 'anon';
+            }
+
+            public function getErrorParams(): array
+            {
+                return [];
+            }
+        };
+
+        $validator = new Validator();
+        self::assertFalse($validator->register($rule));
+        self::assertTrue($validator->passes(['v' => 'ok'], ['v' => ['anon' => true]]));
+        self::assertFalse($validator->passes(['v' => 'no'], ['v' => ['anon' => true]]));
+    }
+
+    public function testRegisteredInstanceOverridesBuiltinAndReportsIt(): void
+    {
+        // An instance is keyed by its error code, so a rule whose code is
+        // `email` displaces the built-in of the same name.
+        $rule = new class implements RuleInterface {
+            public function validate(mixed $value): bool
+            {
+                return $value === 'anything';
+            }
+
+            public function getErrorCode(): string
+            {
+                return 'email';
+            }
+
+            public function getErrorParams(): array
+            {
+                return [];
+            }
+        };
+
+        $validator = new Validator();
+        self::assertTrue($validator->register($rule));
+        self::assertTrue($validator->passes(['email' => 'anything'], ['email' => ['email' => true]]));
+        self::assertFalse($validator->passes(['email' => 'user@example.com'], ['email' => ['email' => true]]));
+    }
+
+    public function testRegisteredInstanceResolvesInListForm(): void
+    {
+        $validator = new Validator();
+        $validator->register(new SecretRule());
+
+        self::assertTrue($validator->passes(['code' => 'secret'], ['code' => ['secret']]));
+        self::assertFalse($validator->passes(['code' => 'wrong'], ['code' => ['secret']]));
+    }
+
+    public function testRegisteredInstanceRespectsFalseDisable(): void
+    {
+        $validator = new Validator();
+        $validator->register(new SecretRule());
+
+        // `false` disables the rule before its instance is ever looked up
+        self::assertTrue($validator->passes(['code' => 'wrong'], ['code' => ['secret' => false]]));
+    }
+
+    public function testRegisteredInstanceIgnoresItsConfig(): void
+    {
+        $validator = new Validator();
+        $validator->register(new SecretRule());
+
+        // A scalar config would otherwise be routed to the constructor; for an
+        // already-built instance it is simply ignored. (SecretRule takes no
+        // constructor argument, so routing it would have thrown instead.)
+        self::assertTrue($validator->passes(['code' => 'secret'], ['code' => ['secret' => 'ignored']]));
+    }
+
+    public function testRegisteredInstanceWinsOverARegisteredClassOfTheSameAlias(): void
+    {
+        $validator = new Validator();
+        $validator->register(SecretRule::class);
+        $validator->register(new class implements RuleInterface {
+            public function validate(mixed $value): bool
+            {
+                return $value === 'other';
+            }
+
+            public function getErrorCode(): string
+            {
+                return 'secret';
+            }
+
+            public function getErrorParams(): array
+            {
+                return [];
+            }
+        });
+
+        self::assertTrue($validator->passes(['code' => 'other'], ['code' => ['secret' => true]]));
+        self::assertFalse($validator->passes(['code' => 'secret'], ['code' => ['secret' => true]]));
     }
 
     public function testScalarConfig(): void
@@ -214,15 +332,15 @@ final class ValidatorTest extends TestCase
         self::assertTrue($validator->passes(['n' => 15], ['n' => ['min' => '10']]));
     }
 
-    public function testScalarConfigOnAValidatorWithNoConstructorArgumentIsRefused(): void
+    public function testScalarConfigOnARuleWithNoConstructorArgumentIsRefused(): void
     {
-        // The config used to vanish: EmailValidator takes no constructor argument, so the scalar was dropped
+        // The config used to vanish: EmailRule takes no constructor argument, so the scalar was dropped
         // and the rule quietly became a bare email check.
-        // 该配置曾会凭空消失：EmailValidator 没有构造参数，于是这个标量被丢弃，规则悄然退化成普通邮箱校验。
+        // 该配置曾会凭空消失：EmailRule 没有构造参数，于是这个标量被丢弃，规则悄然退化成普通邮箱校验。
         $validator = new Validator();
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('EmailValidator takes no constructor argument');
+        $this->expectExceptionMessage('EmailRule takes no constructor argument');
 
         $validator->validate(['name' => 'x'], ['name' => ['email' => 'nonsense']]);
     }
@@ -236,7 +354,7 @@ final class ValidatorTest extends TestCase
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage(
-            'MinLengthValidator expects int for its first constructor argument, got string'
+            'MinLengthRule expects int for its first constructor argument, got string'
         );
 
         $validator->validate(['name' => 'x'], ['name' => ['minLength' => 'abc']]);
@@ -255,16 +373,16 @@ final class ValidatorTest extends TestCase
         ));
     }
 
-    public function testConstructorPreRegistersCustomValidators(): void
+    public function testConstructorPreRegistersCustomRules(): void
     {
-        $validator = new Validator([SecretValidator::class]);
+        $validator = new Validator([SecretRule::class]);
         self::assertTrue($validator->passes(['token' => 'secret'], ['token' => ['secret' => true]]));
         self::assertFalse($validator->passes(['token' => 'a-different-value'], ['token' => ['secret' => true]]));
     }
 
     public function testConstructorPreRegisteredRulesAreInstanceScoped(): void
     {
-        $with = new Validator([SecretValidator::class]);
+        $with = new Validator([SecretRule::class]);
         $without = new Validator();
         self::assertTrue($with->passes(['token' => 'secret'], ['token' => ['secret' => true]]));
         $this->expectException(\InvalidArgumentException::class);
@@ -273,9 +391,9 @@ final class ValidatorTest extends TestCase
 
     public function testConstructorAcceptsCollidingAliasClassWithoutError(): void
     {
-        // EmailValidator collides with the builtin `email` rule; passing it via
+        // EmailRule collides with the builtin `email` rule; passing it via
         // the constructor must be accepted (override path), not throw.
-        $validator = new Validator([EmailValidator::class]);
+        $validator = new Validator([EmailRule::class]);
         self::assertTrue($validator->passes(
             ['value' => 'user@example.com'],
             ['value' => ['email' => true]]
@@ -288,7 +406,7 @@ final class ValidatorTest extends TestCase
 
     public function testVersionConstant(): void
     {
-        self::assertSame('2.0.0', Validator::VERSION);
+        self::assertSame('2.3.0', Validator::VERSION);
     }
 
     public function testEnumListArrayConfigThroughValidator(): void
@@ -337,7 +455,7 @@ final class ValidatorTest extends TestCase
     public function testPatternListArrayConfigWorks(): void
     {
         $validator = new Validator();
-        // list form on a scalar-first-param validator: single element is the
+        // list form on a scalar-first-param rule: single element is the
         // scalar config (previously threw a raw TypeError)
         self::assertTrue($validator->passes(
             ['code' => 'abc'],
@@ -427,23 +545,23 @@ final class ValidatorTest extends TestCase
     {
         // Subclass that overrides register() and tracks calls.
         // The parent constructor must NOT invoke the overridden register().
-        $mock = new class([SecretValidator::class]) extends Validator {
+        $mock = new class([SecretRule::class]) extends Validator {
             public int $registerCalls = 0;
 
-            public function register(string $class): bool
+            public function register(string|RuleInterface $rule): bool
             {
                 $this->registerCalls++;
-                return parent::register($class);
+                return parent::register($rule);
             }
         };
 
         self::assertSame(0, $mock->registerCalls,
             'Constructor should not call the overridden register()');
-        // SecretValidator was still registered via the internal path
+        // SecretRule was still registered via the internal path
         self::assertTrue($mock->passes(['token' => 'secret'], ['token' => ['secret' => true]]));
 
         // Explicit register() call does invoke the override
-        $mock->register(StatusValidator::class);
+        $mock->register(StatusRule::class);
         self::assertSame(1, $mock->registerCalls);
     }
 
@@ -486,7 +604,7 @@ final class ValidatorTest extends TestCase
         $validator = new Validator();
         // a typo must fail loudly instead of silently weakening the rule
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/Unknown config key\(s\) for MinLengthValidator: mn/');
+        $this->expectExceptionMessageMatches('/Unknown config key\(s\) for MinLengthRule: mn/');
         $validator->passes(
             ['name' => 'ab'],
             ['name' => ['minLength' => ['mn' => 5]]]
@@ -497,7 +615,7 @@ final class ValidatorTest extends TestCase
     {
         $validator = new Validator();
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/Unknown config key\(s\) for PatternValidator: patern/');
+        $this->expectExceptionMessageMatches('/Unknown config key\(s\) for PatternRule: patern/');
         $validator->passes(
             ['code' => '123'],
             ['code' => ['pattern' => ['patern' => '/^[a-z]+$/']]]
