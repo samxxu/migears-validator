@@ -3,6 +3,7 @@
     "description": "Lightweight declarative validation — error codes, i18n-ready",
     "type": "library",
     "license": "MIT",
+    "version": "2.3.0",
     "keywords": [
         "validation",
         "validator",
