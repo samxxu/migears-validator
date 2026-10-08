@@ -13,7 +13,7 @@ Validator provides a clean API for validating arrays (form data, API parameters,
 ## Features
 
 - **Error-code based** — no hardcoded messages, fully i18n-ready
-- **23 built-in rules** — required, email, integer, number, url, date, time, money, enum, ipAddress, alpha, alphaNumeric, min, max, minLength, maxLength, pattern, equals, greaterThan, greaterOrEqualThan, lessThan, lessOrEqualThan, containUrl
+- **26 built-in rules** — required, email, integer, number, url, date, dateRange, dateTimeRange, time, timeRange, money, enum, ipAddress, alpha, alphaNumeric, min, max, minLength, maxLength, pattern, equals, greaterThan, greaterOrEqualThan, lessThan, lessOrEqualThan, containUrl
 - **Declarative rules** — multiple config styles: boolean, scalar, array, instance, or zero-index alias
 - **Custom rules** — register by class name (alias derived) on each instance, or pass instances directly
 - **Short-circuit validation** — stops at the first error per field
@@ -25,7 +25,7 @@ Validator provides a clean API for validating arrays (form data, API parameters,
 **In scope**
 
 - The rule engine: executing declarative rule sets against arrays via `validate()` / `passes()`, returning structured error codes + params (PSR-4 under `MiGears\Validator`).
-- The 23 built-in rule classes and the `RuleInterface` (`validate()` / `getErrorCode()` / `getErrorParams()`) for writing custom rules.
+- The 26 built-in rule classes and the `RuleInterface` (`validate()` / `getErrorCode()` / `getErrorParams()`) for writing custom rules.
 - The five rule-config styles (boolean, scalar, array map/list, rule instance, zero-index alias), including scalar coercion and a loud `InvalidArgumentException` on an unknown config key.
 - Per-instance custom-rule registration — by class-string (alias derived from the class short name) or by a ready-made instance (alias taken from its `getErrorCode()`) — and the ability to override a built-in rule.
 
@@ -271,7 +271,10 @@ Every built-in rule (except `required`) treats a `null` or blank-string value as
 | `pattern` | `{pattern}` | Regex pattern match |
 | `url` | `[]` | Valid URL |
 | `date` | `[]` | Real, valid calendar date in `YYYY-M-D` format |
+| `dateRange` | `{min, max}` | Date within an inclusive range (at least one bound required) |
+| `dateTimeRange` | `{min, max}` | Date-time within an inclusive range (at least one bound required) |
 | `time` | `[]` | Real time in `H:M(:S)` format (0–23, 0–59)|
+| `timeRange` | `{min, max}` | Time within an inclusive range (at least one bound required) |
 | `money` | `[]` | Money amount: zero or positive decimal with ≤ 2 places |
 | `enum` | `{allowed}` | Value is one of the allowed values (array or `a\|b` string) |
 | `ipAddress` | `[]` | Valid IPv4 or IPv6 address |
@@ -286,7 +289,9 @@ Every built-in rule (except `required`) treats a `null` or blank-string value as
 
 > The rule name and the error code are the same; the `Params` column shows the entries returned in the error, i.e. the interpolated variables for i18n messages. `alpha` and `alphaNumeric` are ASCII-only — they do not accept accented or CJK (e.g. Chinese) characters.
 >
-> The numeric rules (`number`, `min`, `max`, `greaterThan`, `greaterOrEqualThan`, `lessThan`, `lessOrEqualThan`) rely on PHP's `is_numeric()`, so a numeric string padded with surrounding spaces (`' 123'`, `'123 '`) is accepted. The format rules that use anchored regexes (`integer`, `money`, `alpha`, `alphaNumeric`, `date`, `time`) reject it.
+> The numeric rules (`number`, `min`, `max`, `greaterThan`, `greaterOrEqualThan`, `lessThan`, `lessOrEqualThan`) rely on PHP's `is_numeric()`, so a numeric string padded with surrounding spaces (`' 123'`, `'123 '`) is accepted. The format rules that use anchored regexes (`integer`, `money`, `alpha`, `alphaNumeric`, `date`, `dateRange`, `dateTimeRange`, `time`, `timeRange`) reject it.
+>
+> `dateRange`, `timeRange` and `dateTimeRange` skip `null`/empty like every other rule. At least one of `min`/`max` is required, both bounds are inclusive, and the comparison is always on the actual date/time (`2026-9-9` counts as `2026-09-09`, `9:5` counts as `09:05`), never on the raw strings. A `min` later than `max` is rejected at construction, so a time range crossing midnight is not supported. `dateTimeRange` takes `YYYY-M-D H:M(:S)` with exactly one space between the date and the time.
 
 ## Custom Rules
 
@@ -377,7 +382,7 @@ miGears Validator follows the miGears philosophy: **minimal, readable, and usefu
 - **Simple interface** — one interface with three methods
 - **Short-circuit by default** — one error per field, fail fast
 - **No magic** — no annotations, reflection used internally only for config coercion
-- **Small enough to read** — ~1,400 lines total
+- **Small enough to read** — ~1,800 lines total
 
 ## License
 
@@ -396,7 +401,7 @@ Validator 提供简洁的 API 来验证数组（表单数据、API 参数、领�
 ## 特性
 
 - **基于错误码** — 没有硬编码消息，完全 i18n 就绪
-- **23 个内置规则** — required、email、integer、number、url、date、time、money、enum、ipAddress、alpha、alphaNumeric、min、max、minLength、maxLength、pattern、equals、greaterThan、greaterOrEqualThan、lessThan、lessOrEqualThan、containUrl
+- **26 个内置规则** — required、email、integer、number、url、date、dateRange、dateTimeRange、time、timeRange、money、enum、ipAddress、alpha、alphaNumeric、min、max、minLength、maxLength、pattern、equals、greaterThan、greaterOrEqualThan、lessThan、lessOrEqualThan、containUrl
 - **声明式规则** — 多种配置方式：布尔值、标量、数组、实例、零索引别名
 - **自定义规则** — 在每个实例上按类名注册（别名自动推导）或直接传入实例
 - **短路验证** — 每个字段遇到第一个错误即停止
@@ -408,7 +413,7 @@ Validator 提供简洁的 API 来验证数组（表单数据、API 参数、领�
 **范围内**
 
 - 规则引擎：通过 `validate()` / `passes()` 对数组执行声明式规则集，返回结构化的错误码 + 参数（PSR-4 根为 `MiGears\Validator`）。
-- 23 个内置规则类，以及用于编写自定义规则的 `RuleInterface`（`validate()` / `getErrorCode()` / `getErrorParams()`）。
+- 26 个内置规则类，以及用于编写自定义规则的 `RuleInterface`（`validate()` / `getErrorCode()` / `getErrorParams()`）。
 - 五种规则配置形态（布尔值、标量、数组命名/列表、规则实例、零索引别名），含标量类型适配，以及未知配置键时抛出的 `InvalidArgumentException`。
 - 基于实例的自定义规则注册 —— 可传类名（别名由类短名推导）或传已构造的实例（别名取自其 `getErrorCode()`）—— 并可覆盖内置规则。
 
@@ -654,7 +659,10 @@ $errors = $user->validate();
 | `pattern` | `{pattern}` | 正则表达式匹配 |
 | `url` | `[]` | 有效的 URL |
 | `date` | `[]` | 真实合法的日历日期，`YYYY-M-D` 格式 |
+| `dateRange` | `{min, max}` | 日期在闭区间内（至少指定一侧边界） |
+| `dateTimeRange` | `{min, max}` | 日期时间在闭区间内（至少指定一侧边界） |
 | `time` | `[]` | 真实合法的时间，`H:M(:S)` 格式（0–23、0–59）|
+| `timeRange` | `{min, max}` | 时间在闭区间内（至少指定一侧边界） |
 | `money` | `[]` | 金额：0 或最多两位小数的正数 |
 | `enum` | `{allowed}` | 值在允许集合内（数组或 `a\|b` 字符串） |
 | `ipAddress` | `[]` | 有效的 IPv4 或 IPv6 地址 |
@@ -669,7 +677,9 @@ $errors = $user->validate();
 
 > 规则名即错误码；「参数」列是出错时返回的字段，即 i18n 消息用于插值的变量。`alpha` 与 `alphaNumeric` 仅支持 ASCII，不接受带重音或 CJK（如中文）字符。
 >
-> 数值类规则（`number`、`min`、`max`、`greaterThan`、`greaterOrEqualThan`、`lessThan`、`lessOrEqualThan`）基于 PHP 的 `is_numeric()`，因此前后带空格的数字串（`' 123'`、`'123 '`）会被接受；而使用锚定正则的格式类规则（`integer`、`money`、`alpha`、`alphaNumeric`、`date`、`time`）会拒绝。
+> 数值类规则（`number`、`min`、`max`、`greaterThan`、`greaterOrEqualThan`、`lessThan`、`lessOrEqualThan`）基于 PHP 的 `is_numeric()`，因此前后带空格的数字串（`' 123'`、`'123 '`）会被接受；而使用锚定正则的格式类规则（`integer`、`money`、`alpha`、`alphaNumeric`、`date`、`dateRange`、`dateTimeRange`、`time`、`timeRange`）会拒绝。
+>
+> `dateRange`、`timeRange` 与 `dateTimeRange` 和其它规则一样跳过 `null`/空串。`min`/`max` 至少要指定一侧，两侧边界均包含，比较始终基于真实日期/时刻（`2026-9-9` 等同 `2026-09-09`，`9:5` 等同 `09:05`），而非原始字符串。`min` 晚于 `max` 会在构造时被拒绝，因此时间维度上不支持跨零点区间。`dateTimeRange` 的格式为 `YYYY-M-D H:M(:S)`，日期与时间之间恰好一个空格。
 
 ## 自定义规则
 
@@ -759,7 +769,7 @@ miGears Validator 遵循 miGears 设计哲学：**极简、可读、实用**。
 - **简单接口** — 一个接口，三个方法
 - **默认短路** — 每个字段一个错误，快速失败
 - **没有魔法** — 没有注解，反射仅内部用于配置适配
-- **小到可以读完** — 总共约 1,400 行代码
+- **小到可以读完** — 总共约 1,800 行代码
 
 ## 许可证
 

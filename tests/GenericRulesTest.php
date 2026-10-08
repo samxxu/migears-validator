@@ -9,7 +9,9 @@ use MiGears\Validator\Validator;
 use MiGears\Validator\Rules\AlphaNumericRule;
 use MiGears\Validator\Rules\AlphaRule;
 use MiGears\Validator\Rules\ContainUrlRule;
+use MiGears\Validator\Rules\DateRangeRule;
 use MiGears\Validator\Rules\DateRule;
+use MiGears\Validator\Rules\DateTimeRangeRule;
 use MiGears\Validator\Rules\EnumRule;
 use MiGears\Validator\Rules\EqualsRule;
 use MiGears\Validator\Rules\GreaterOrEqualThanRule;
@@ -19,6 +21,7 @@ use MiGears\Validator\Rules\LessOrEqualThanRule;
 use MiGears\Validator\Rules\LessThanRule;
 use MiGears\Validator\Rules\MoneyRule;
 use MiGears\Validator\Rules\NumberRule;
+use MiGears\Validator\Rules\TimeRangeRule;
 use MiGears\Validator\Rules\TimeRule;
 
 final class GenericRulesTest extends TestCase
@@ -37,6 +40,205 @@ final class GenericRulesTest extends TestCase
         self::assertSame('date', $rule->getErrorCode());
     }
 
+    public function testDateRangeRule(): void
+    {
+        $both = new DateRangeRule('2026-09-01', '2026-09-30');
+        self::assertTrue($both->validate('2026-09-01'));
+        self::assertTrue($both->validate('2026-09-15'));
+        self::assertTrue($both->validate('2026-09-30'));
+        self::assertFalse($both->validate('2026-08-31'));
+        self::assertFalse($both->validate('2026-10-01'));
+        self::assertSame('dateRange', $both->getErrorCode());
+        self::assertSame(['min' => '2026-09-01', 'max' => '2026-09-30'], $both->getErrorParams());
+
+        // Only one bound is required.
+        $minOnly = new DateRangeRule(min: '2026-09-01');
+        self::assertTrue($minOnly->validate('2026-09-01'));
+        self::assertTrue($minOnly->validate('2030-01-01'));
+        self::assertFalse($minOnly->validate('2026-08-31'));
+
+        $maxOnly = new DateRangeRule(max: '2026-09-30');
+        self::assertTrue($maxOnly->validate('1999-01-01'));
+        self::assertTrue($maxOnly->validate('2026-09-30'));
+        self::assertFalse($maxOnly->validate('2026-10-01'));
+    }
+
+    public function testDateRangeRuleComparesActualDateNotString(): void
+    {
+        // The accepted format is not zero-padded, so '2026-9-9' must compare as 2026-09-09.
+        $rule = new DateRangeRule('2026-9-5', '2026-10-01');
+        self::assertTrue($rule->validate('2026-9-5'));
+        self::assertTrue($rule->validate('2026-09-30'));
+        self::assertFalse($rule->validate('2026-9-4'));
+        self::assertFalse($rule->validate('2026-10-02'));
+    }
+
+    public function testDateRangeRuleSkipsEmptyAndRejectsMalformedValues(): void
+    {
+        $rule = new DateRangeRule('2026-09-01', '2026-09-30');
+        self::assertTrue($rule->validate(null));
+        self::assertTrue($rule->validate(''));
+        self::assertTrue($rule->validate('  '));
+        self::assertFalse($rule->validate('2026-02-30'));
+        self::assertFalse($rule->validate('2026-13-01'));
+        self::assertFalse($rule->validate('2026/09/19'));
+        self::assertFalse($rule->validate("2026-09-19\n"));
+        self::assertFalse($rule->validate(20260919));
+    }
+
+    public function testDateRangeRuleRejectsInvalidConfiguration(): void
+    {
+        $cases = [
+            'no bound at all' => static fn () => new DateRangeRule(),
+            'malformed min' => static fn () => new DateRangeRule('2026-02-30'),
+            'malformed max' => static fn () => new DateRangeRule(null, 'abc'),
+            'reversed bounds' => static fn () => new DateRangeRule('2026-09-30', '2026-09-01'),
+        ];
+
+        $accepted = [];
+
+        foreach ($cases as $label => $build) {
+            try {
+                $build();
+                $accepted[] = $label;
+            } catch (\InvalidArgumentException) {
+                // expected
+            }
+        }
+
+        self::assertSame([], $accepted, 'These configurations should have been rejected');
+    }
+
+    public function testDateRangeRuleThroughValidatorClass(): void
+    {
+        $validator = new Validator();
+        $rules = ['issued' => ['dateRange' => ['min' => '2026-09-01', 'max' => '2026-09-30']]];
+
+        self::assertTrue($validator->passes(['issued' => '2026-09-15'], $rules));
+
+        $errors = $validator->validate(['issued' => '2026-08-31'], $rules);
+        self::assertSame('dateRange', $errors['issued']['rule']);
+        self::assertSame(
+            ['min' => '2026-09-01', 'max' => '2026-09-30'],
+            $errors['issued']['params']
+        );
+
+        // Scalar config lands on the first parameter, so it configures `min`.
+        self::assertTrue($validator->passes(
+            ['issued' => '2026-09-15'],
+            ['issued' => ['dateRange' => '2026-09-01']]
+        ));
+    }
+
+    public function testDateTimeRangeRule(): void
+    {
+        $both = new DateTimeRangeRule('2026-09-01 09:00', '2026-09-30 18:00');
+        self::assertTrue($both->validate('2026-09-01 09:00'));
+        self::assertTrue($both->validate('2026-09-15 12:30:45'));
+        self::assertTrue($both->validate('2026-09-30 18:00'));
+        self::assertFalse($both->validate('2026-09-01 08:59'));
+        self::assertFalse($both->validate('2026-09-30 18:01'));
+        self::assertSame('dateTimeRange', $both->getErrorCode());
+        self::assertSame(
+            ['min' => '2026-09-01 09:00', 'max' => '2026-09-30 18:00'],
+            $both->getErrorParams()
+        );
+
+        // Only one bound is required.
+        $minOnly = new DateTimeRangeRule(min: '2026-09-01 09:00');
+        self::assertTrue($minOnly->validate('2026-09-01 09:00'));
+        self::assertTrue($minOnly->validate('2030-01-01 00:00'));
+        self::assertFalse($minOnly->validate('2026-09-01 08:59'));
+
+        $maxOnly = new DateTimeRangeRule(max: '2026-09-30 18:00');
+        self::assertTrue($maxOnly->validate('1999-01-01 00:00'));
+        self::assertTrue($maxOnly->validate('2026-09-30 18:00'));
+        self::assertFalse($maxOnly->validate('2026-09-30 18:01'));
+    }
+
+    public function testDateTimeRangeRuleComparesDateAndTimeTogether(): void
+    {
+        // A window that spans a day boundary must be ordered by the full
+        // date-time, not by the date and the time separately.
+        $rule = new DateTimeRangeRule('2026-09-30 18:00', '2026-10-01 09:00');
+        self::assertTrue($rule->validate('2026-09-30 18:00'));
+        self::assertTrue($rule->validate('2026-09-30 20:00'));
+        self::assertTrue($rule->validate('2026-10-01 09:00'));
+        self::assertFalse($rule->validate('2026-09-30 17:59'));
+        self::assertFalse($rule->validate('2026-10-01 09:01'));
+
+        // Neither part is zero-padded, so '2026-9-9 9:5' must compare as 2026-09-09 09:05.
+        $loose = new DateTimeRangeRule('2026-9-9 9:5', '2026-9-9 10:00');
+        self::assertTrue($loose->validate('2026-9-9 9:5'));
+        self::assertTrue($loose->validate('2026-9-9 9:05:30'));
+        self::assertFalse($loose->validate('2026-09-09 09:04'));
+    }
+
+    public function testDateTimeRangeRuleSkipsEmptyAndRejectsMalformedValues(): void
+    {
+        $rule = new DateTimeRangeRule('2026-09-01 09:00', '2026-09-30 18:00');
+        self::assertTrue($rule->validate(null));
+        self::assertTrue($rule->validate(''));
+        self::assertTrue($rule->validate('  '));
+        self::assertFalse($rule->validate('2026-02-30 10:00'));
+        self::assertFalse($rule->validate('2026-09-19 24:00'));
+        self::assertFalse($rule->validate('2026-09-19'));
+        self::assertFalse($rule->validate('10:30'));
+        self::assertFalse($rule->validate('2026-09-19T10:30'));
+        self::assertFalse($rule->validate('2026-09-19  10:30'));
+        self::assertFalse($rule->validate("2026-09-19 10:30\n"));
+        self::assertFalse($rule->validate(20260919));
+    }
+
+    public function testDateTimeRangeRuleRejectsInvalidConfiguration(): void
+    {
+        $cases = [
+            'no bound at all' => static fn () => new DateTimeRangeRule(),
+            'malformed min' => static fn () => new DateTimeRangeRule('2026-02-30 10:00'),
+            'malformed max' => static fn () => new DateTimeRangeRule(null, 'abc'),
+            'reversed bounds' => static fn () => new DateTimeRangeRule(
+                '2026-09-30 18:00',
+                '2026-09-30 09:00'
+            ),
+        ];
+
+        $accepted = [];
+
+        foreach ($cases as $label => $build) {
+            try {
+                $build();
+                $accepted[] = $label;
+            } catch (\InvalidArgumentException) {
+                // expected
+            }
+        }
+
+        self::assertSame([], $accepted, 'These configurations should have been rejected');
+    }
+
+    public function testDateTimeRangeRuleThroughValidatorClass(): void
+    {
+        $validator = new Validator();
+        $rules = ['published' => [
+            'dateTimeRange' => ['min' => '2026-09-01 09:00', 'max' => '2026-09-30 18:00'],
+        ]];
+
+        self::assertTrue($validator->passes(['published' => '2026-09-15 12:00'], $rules));
+
+        $errors = $validator->validate(['published' => '2026-09-30 18:01'], $rules);
+        self::assertSame('dateTimeRange', $errors['published']['rule']);
+        self::assertSame(
+            ['min' => '2026-09-01 09:00', 'max' => '2026-09-30 18:00'],
+            $errors['published']['params']
+        );
+
+        // Scalar config lands on the first parameter, so it configures `min`.
+        self::assertTrue($validator->passes(
+            ['published' => '2026-09-15 12:00'],
+            ['published' => ['dateTimeRange' => '2026-09-01 09:00']]
+        ));
+    }
+
     public function testTimeRule(): void
     {
         $rule = new TimeRule();
@@ -48,6 +250,97 @@ final class GenericRulesTest extends TestCase
         self::assertFalse($rule->validate('10-30'));
         self::assertFalse($rule->validate("10:30\n"));
         self::assertSame('time', $rule->getErrorCode());
+    }
+
+    public function testTimeRangeRule(): void
+    {
+        $both = new TimeRangeRule('09:00', '18:00');
+        self::assertTrue($both->validate('09:00'));
+        self::assertTrue($both->validate('12:30'));
+        self::assertTrue($both->validate('18:00'));
+        self::assertFalse($both->validate('08:59'));
+        self::assertFalse($both->validate('18:01'));
+        self::assertSame('timeRange', $both->getErrorCode());
+        self::assertSame(['min' => '09:00', 'max' => '18:00'], $both->getErrorParams());
+
+        // Only one bound is required.
+        $minOnly = new TimeRangeRule(min: '09:00');
+        self::assertTrue($minOnly->validate('09:00'));
+        self::assertTrue($minOnly->validate('23:59'));
+        self::assertFalse($minOnly->validate('08:59'));
+
+        $maxOnly = new TimeRangeRule(max: '18:00');
+        self::assertTrue($maxOnly->validate('00:00'));
+        self::assertTrue($maxOnly->validate('18:00'));
+        self::assertFalse($maxOnly->validate('18:01'));
+    }
+
+    public function testTimeRangeRuleComparesActualTimeNotString(): void
+    {
+        // The accepted format is not zero-padded, so '9:5' must compare as 09:05.
+        $rule = new TimeRangeRule('9:05', '10:00');
+        self::assertTrue($rule->validate('9:5'));
+        self::assertTrue($rule->validate('09:30'));
+        self::assertFalse($rule->validate('9:04'));
+
+        $withSeconds = new TimeRangeRule('09:00:00', '09:00:30');
+        self::assertTrue($withSeconds->validate('09:00:30'));
+        self::assertFalse($withSeconds->validate('09:00:31'));
+    }
+
+    public function testTimeRangeRuleSkipsEmptyAndRejectsMalformedValues(): void
+    {
+        $rule = new TimeRangeRule('09:00', '18:00');
+        self::assertTrue($rule->validate(null));
+        self::assertTrue($rule->validate(''));
+        self::assertTrue($rule->validate('  '));
+        self::assertFalse($rule->validate('24:00'));
+        self::assertFalse($rule->validate('10:60'));
+        self::assertFalse($rule->validate('10-30'));
+        self::assertFalse($rule->validate("10:30\n"));
+        self::assertFalse($rule->validate(1030));
+    }
+
+    public function testTimeRangeRuleRejectsInvalidConfiguration(): void
+    {
+        $cases = [
+            'no bound at all' => static fn () => new TimeRangeRule(),
+            'malformed min' => static fn () => new TimeRangeRule('25:00'),
+            'malformed max' => static fn () => new TimeRangeRule(null, 'abc'),
+            'crossing midnight' => static fn () => new TimeRangeRule('22:00', '06:00'),
+        ];
+
+        $accepted = [];
+
+        foreach ($cases as $label => $build) {
+            try {
+                $build();
+                $accepted[] = $label;
+            } catch (\InvalidArgumentException) {
+                // expected
+            }
+        }
+
+        self::assertSame([], $accepted, 'These configurations should have been rejected');
+    }
+
+    public function testTimeRangeRuleThroughValidatorClass(): void
+    {
+        $validator = new Validator();
+        $rules = ['slot' => ['timeRange' => ['min' => '09:00', 'max' => '18:00']]];
+
+        self::assertTrue($validator->passes(['slot' => '12:00'], $rules));
+
+        $errors = $validator->validate(['slot' => '08:00'], $rules);
+        self::assertSame('timeRange', $errors['slot']['rule']);
+        self::assertSame(['min' => '09:00', 'max' => '18:00'], $errors['slot']['params']);
+
+        // Scalar config lands on the first parameter, so it configures `min`.
+        self::assertTrue($validator->passes(['slot' => '12:00'], ['slot' => ['timeRange' => '09:00']]));
+
+        // No bound at all stays a loud failure rather than a silent no-op.
+        $this->expectException(\InvalidArgumentException::class);
+        $validator->validate(['slot' => '12:00'], ['slot' => ['timeRange' => true]]);
     }
 
     public function testNumberRule(): void
